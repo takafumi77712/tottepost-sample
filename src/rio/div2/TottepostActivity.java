@@ -1,5 +1,7 @@
 package rio.div2;
 
+import rio.div2.SettingActivity;
+
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
@@ -23,28 +25,28 @@ public class TottepostActivity extends Activity {
         super.onResume();
 
         TextView myTextView = (TextView)findViewById(R.id.comment_state_text);
-        if(isCommentEnable(getBaseContext())) {
+        if(SettingActivity.isCommentEnable(getBaseContext())) {
             myTextView.setText(R.string.label_on);
         }
         else {
             myTextView.setText(R.string.label_off);
         }
         myTextView = (TextView)findViewById(R.id.location_state_text);
-        if(isLocationEnable(getBaseContext())) {
+        if(SettingActivity.isLocationEnable(getBaseContext())) {
             myTextView.setText(R.string.label_on);
         }
         else {
             myTextView.setText(R.string.label_off);
         }
         myTextView = (TextView)findViewById(R.id.facebook_state_text);
-        if(isServiceEnable(R.string.FACEBOOK, getBaseContext())) {
+        if(SettingActivity.isServiceEnable(R.string.FACEBOOK_KEY, getBaseContext())) {
             myTextView.setText(R.string.label_on);
         }
         else {
             myTextView.setText(R.string.label_off);
         }
         myTextView = (TextView)findViewById(R.id.twitter_state_text);
-        if(isServiceEnable(R.string.TWITTER, getBaseContext())) {
+        if(SettingActivity.isServiceEnable(R.string.TWITTER_KEY, getBaseContext())) {
             myTextView.setText(R.string.label_on);
         }
         else {
@@ -81,29 +83,5 @@ public class TottepostActivity extends Activity {
         }
 
         return(super.onOptionsItemSelected(item));
-    }
-
-    // コメントが有効であるかそうでないかを返す
-    public static boolean isCommentEnable(Context context) {
-        return(PreferenceManager.getDefaultSharedPreferences(context).getBoolean("setting_use_comment", false));
-    }
-
-    // 位置情報が有効であるかそうでないかをを返す
-    public static boolean isLocationEnable(Context context) {
-        return(PreferenceManager.getDefaultSharedPreferences(context).getBoolean("setting_send_location", false));
-    }
-
-    // 引数で指定されたサービスが有効であるかそうでないかをを返す
-    public static boolean isServiceEnable(int serviceNo, Context context) {
-        String keyName = "";
-        switch(serviceNo) {
-        case R.string.FACEBOOK:
-            keyName = "setting_use_facebook";
-            break;
-        case R.string.TWITTER:
-            keyName = "setting_use_twitter";
-            break;
-        }
-        return(PreferenceManager.getDefaultSharedPreferences(context).getBoolean(keyName, false));
     }
 }

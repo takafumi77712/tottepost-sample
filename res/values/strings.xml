@@ -21,6 +21,6 @@
     <string name="about_title">About</string>
     <string name="about_text">About</string>
 
-    <string name="FACEBOOK">0</string>
-    <string name="TWITTER">1</string>
+    <string name="FACEBOOK_KEY">setting_use_facebook</string>
+    <string name="TWITTER_KEY">setting_use_twitterk</string>
 </resources>
