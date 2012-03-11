@@ -55,17 +55,19 @@ public class TottepostActivity extends Activity {
     // オプションメニューを作成
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
-        boolean ret = super.onCreateOptionsMenu(menu);
+        boolean returnBool = super.onCreateOptionsMenu(menu);
 
         MenuInflater inflater = getMenuInflater();
         inflater.inflate(R.menu.menu, menu);
 
-        return(ret);
+        return(returnBool);
     }
 
     // オプションメニューの項目が選択された際の動作を設定
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
+        boolean returnBool = super.onOptionsItemSelected(item);
+
         Intent intent = new Intent();
         switch(item.getItemId()) {
         case R.id.menu_setting:
@@ -80,6 +82,6 @@ public class TottepostActivity extends Activity {
             break;
         }
 
-        return(super.onOptionsItemSelected(item));
+        return(returnBool);
     }
 }
