@@ -12,14 +12,14 @@
     <PreferenceScreen android:title="Facebook">
         <PreferenceCategory android:title="@string/setting_facebook_title">
             <CheckBoxPreference android:title="@string/setting_use_facebook_title"
-                android:key="setting_use_facebook">
+                android:key="@string/FACEBOOK_KEY">
             </CheckBoxPreference>
         </PreferenceCategory>
     </PreferenceScreen>
     <PreferenceScreen android:title="Twitter">
         <PreferenceCategory android:title="@string/setting_twitter_title">
             <CheckBoxPreference android:title="@string/setting_use_twitter_title"
-                android:key="setting_use_twitter">
+                android:key="@string/TWITTER_KEY">
             </CheckBoxPreference>
         </PreferenceCategory>
     </PreferenceScreen>
