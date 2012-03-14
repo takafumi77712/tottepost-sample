@@ -23,28 +23,28 @@ public class TottepostActivity extends Activity {
         super.onResume();
 
         TextView myTextView = (TextView)findViewById(R.id.comment_state_text);
-        if(SettingActivity.isCommentEnable(getBaseContext())) {
+        if(SettingActivity.isCommentEnable(getApplicationContext())) {
             myTextView.setText(R.string.label_on);
         }
         else {
             myTextView.setText(R.string.label_off);
         }
         myTextView = (TextView)findViewById(R.id.location_state_text);
-        if(SettingActivity.isLocationEnable(getBaseContext())) {
+        if(SettingActivity.isLocationEnable(getApplicationContext())) {
             myTextView.setText(R.string.label_on);
         }
         else {
             myTextView.setText(R.string.label_off);
         }
         myTextView = (TextView)findViewById(R.id.facebook_state_text);
-        if(SettingActivity.isServiceEnable(R.string.FACEBOOK_KEY, getBaseContext())) {
+        if(SettingActivity.isServiceEnable(R.string.FACEBOOK_KEY, getApplicationContext())) {
             myTextView.setText(R.string.label_on);
         }
         else {
             myTextView.setText(R.string.label_off);
         }
         myTextView = (TextView)findViewById(R.id.twitter_state_text);
-        if(SettingActivity.isServiceEnable(R.string.TWITTER_KEY, getBaseContext())) {
+        if(SettingActivity.isServiceEnable(R.string.TWITTER_KEY, getApplicationContext())) {
             myTextView.setText(R.string.label_on);
         }
         else {
