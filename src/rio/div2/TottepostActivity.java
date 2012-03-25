@@ -3,52 +3,194 @@ package rio.div2;
 import rio.div2.SettingActivity;
 
 import android.app.Activity;
+import android.content.ContentResolver;
+import android.content.ContentValues;
+import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.database.Cursor;
+import android.graphics.Bitmap;
+import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Environment;
+import android.os.Handler;
+import android.preference.PreferenceManager;
+import android.provider.MediaStore;
+import android.widget.AdapterView;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.Toast;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
-import android.widget.TextView;
+import android.view.View;
+import android.view.inputmethod.InputMethodManager;
+
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.net.MalformedURLException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+
+import com.facebook.android.AsyncFacebookRunner;
+import com.facebook.android.DialogError;
+import com.facebook.android.Facebook;
+import com.facebook.android.FacebookError;
+
+import twitter4j.TwitterException;
+import twitter4j.conf.Configuration;
+import twitter4j.conf.ConfigurationBuilder;
+import twitter4j.media.ImageUpload;
+import twitter4j.media.ImageUploadFactory;
 
 public class TottepostActivity extends Activity {
+    // 定数の宣言
+    public static final int REQUEST_IMAGE = 0;
+
+    // Facebook用
+    public static final int FACEBOOK = 0;
+    public static final String APPID_FOR_FACEBOOK = "191124934334818";
+    public static final int REQUEST_FACEBOOK_OAUTH = 10;
+    public static final int TOKEN_FOR_FACEBOOK = 0;
+    // Twitter用
+    public static final int TWITTER = 1;
+    public static final String CALLBACK_URL_FOR_TWITTER = "http://www.google.co.jp/";
+    public static final String CS_KEY_FOR_TWITTER = "KZkiTK9pcyuGJFzZplIw";
+    public static final String CS_SECRET_FOR_TWITTER = "Kn0pibiqjV4MsbXMTQJh4Muo5WbQalvelr0NsT5liXw";
+    public static final int REQUEST_TWITTER_OAUTH = 11;
+    public static final int TOKEN_FOR_TWITTER = 1;
+    public static final int TOKEN_SECRET_FOR_TWITTER = 2;
+
+    // 変数の宣言
+    private Handler mHandler;
+    private Uri destUri;
+
+    private Facebook mFacebook;
+    private AsyncFacebookRunner mAsyncRunner;
+
+    // 配列の宣言
+    private String[] tokens;
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
+
+        mHandler = new Handler();
+
+        tokens = new String[3];
+        tokens[TOKEN_FOR_FACEBOOK] = loadData("TokenForFacebook");
+        tokens[TOKEN_FOR_TWITTER] = loadData("TokenForTwitter");
+        tokens[TOKEN_SECRET_FOR_TWITTER] = loadData("TokenSecretForTwitter");
+
+        mFacebook = new Facebook(APPID_FOR_FACEBOOK);
+        mFacebook.setAccessToken(tokens[TOKEN_FOR_FACEBOOK]);
+        mAsyncRunner = new AsyncFacebookRunner(mFacebook);
+
+        if(tokens[TOKEN_FOR_FACEBOOK].length() == 0) {
+            // Facebook用
+            // アクセストークンが存在しなければ認証を行う
+            mFacebook.authorize(TottepostActivity.this,
+                                new String[] {"offline_access", "publish_stream"},
+                                REQUEST_FACEBOOK_OAUTH, new LoginDialogListener());
+        }
+        if(tokens[TOKEN_FOR_TWITTER].length() == 0 || tokens[TOKEN_SECRET_FOR_TWITTER].length() == 0) {
+            // Twitter用
+            // アクセストークンが存在しなければ認証を行う
+            Intent mIntent = new Intent(TottepostActivity.this, OAuthActivity.class);
+            mIntent.putExtra(OAuthActivity.CALLBACK, CALLBACK_URL_FOR_TWITTER);
+            mIntent.putExtra(OAuthActivity.CONSUMER_KEY, CS_KEY_FOR_TWITTER);
+            mIntent.putExtra(OAuthActivity.CONSUMER_SECRET, CS_SECRET_FOR_TWITTER);
+            startActivityForResult(mIntent, REQUEST_TWITTER_OAUTH);
+        }
+
+        Button postFromCameraButton = (Button)findViewById(R.id.post_from_camera);
+        postFromCameraButton.setOnClickListener(new AdapterView.OnClickListener() {
+           @Override
+           public void onClick(View v) {
+               closeInputPanel(v);
+               callCamera();
+           }
+        });
+
+        Button postFromGalleryButton = (Button)findViewById(R.id.post_from_gallery);
+        postFromGalleryButton.setOnClickListener(new AdapterView.OnClickListener() {
+           @Override
+           public void onClick(View v) {
+               closeInputPanel(v);
+               callGallery();
+           }
+        });
+
+        // 保存先のディレクトリを作成
+        File baseDir = new File(Environment.getExternalStorageDirectory(), "Tottepost");
+        try {
+            if(!baseDir.exists() && !baseDir.mkdirs()) {
+                Toast.makeText(getApplicationContext(), "保存用ディレクトリの作成に失敗しました。", Toast.LENGTH_SHORT).show();
+                finish();
+            }
+        }
+        catch(Exception e) {
+            e.printStackTrace();
+        }
+
+        /***
+         * カメラで撮影した画像の保存先を明示する
+         * 参考:カメラやギャラリーピッカーからの画像取得周りまとめ2｜いろいろ備忘録
+         *     http://ameblo.jp/yolluca/entry-10895298488.html
+         */
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMddkkmmss");
+        String destName = baseDir.getAbsolutePath() + "/Tottepost_" + dateFormat.format(new Date()) + ".jpg";
+        ContentValues values = new ContentValues();
+        values.put(MediaStore.Images.Media.TITLE, destName);
+        values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
+        destUri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
     }
 
-    // 元のアクティビティに戻った際に設定内容を取得
     @Override
-    public void onResume() {
-        super.onResume();
+    public void onDestroy() {
+        super.onDestroy();
+    }
 
-        TextView myTextView = (TextView)findViewById(R.id.comment_state_text);
-        if(SettingActivity.isCommentEnable(getApplicationContext())) {
-            myTextView.setText(R.string.label_on);
-        }
-        else {
-            myTextView.setText(R.string.label_off);
-        }
-        myTextView = (TextView)findViewById(R.id.location_state_text);
-        if(SettingActivity.isLocationEnable(getApplicationContext())) {
-            myTextView.setText(R.string.label_on);
-        }
-        else {
-            myTextView.setText(R.string.label_off);
-        }
-        myTextView = (TextView)findViewById(R.id.facebook_state_text);
-        if(SettingActivity.isServiceEnable(R.string.FACEBOOK_KEY, getApplicationContext())) {
-            myTextView.setText(R.string.label_on);
-        }
-        else {
-            myTextView.setText(R.string.label_off);
-        }
-        myTextView = (TextView)findViewById(R.id.twitter_state_text);
-        if(SettingActivity.isServiceEnable(R.string.TWITTER_KEY, getApplicationContext())) {
-            myTextView.setText(R.string.label_on);
-        }
-        else {
-            myTextView.setText(R.string.label_off);
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        switch(requestCode) {
+        case REQUEST_IMAGE:
+            if(resultCode == Activity.RESULT_OK) {
+                if(data != null && data.getData() != null) {
+                    postMessage(data.getData());
+                }
+                else {
+                    postMessage(destUri);
+                }
+            }
+
+            break;
+        case REQUEST_FACEBOOK_OAUTH:
+            if(resultCode == Activity.RESULT_OK) {
+                mFacebook.authorizeCallback(requestCode, resultCode, data);
+                saveData("TokenForFacebook", data.getStringExtra(Facebook.TOKEN));
+                tokens[TOKEN_FOR_FACEBOOK] = data.getStringExtra(Facebook.TOKEN);
+                mFacebook.setAccessToken(tokens[TOKEN_FOR_FACEBOOK]);
+            }
+
+            break;
+        case REQUEST_TWITTER_OAUTH:
+            if(resultCode == Activity.RESULT_OK) {
+                saveData("TokenForTwitter", data.getStringExtra(OAuthActivity.TOKEN));
+                saveData("TokenSecretForTwitter", data.getStringExtra(OAuthActivity.TOKEN_SECRET));
+                tokens[TOKEN_FOR_TWITTER] = data.getStringExtra(OAuthActivity.TOKEN);
+                tokens[TOKEN_SECRET_FOR_TWITTER] = data.getStringExtra(OAuthActivity.TOKEN_SECRET);
+            }
+
+            break;
+        default:
+            break;
         }
     }
 
@@ -83,5 +225,223 @@ public class TottepostActivity extends Activity {
         }
 
         return(returnBool);
+    }
+
+    // データを保存する
+    public void saveData(String key, String value) {
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
+        prefs.edit().putString(key, value).commit();
+    }
+
+    // データを読み出す
+    public String loadData(String key) {
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
+
+        return(prefs.getString(key, ""));
+    }
+
+    // 入力パネルを閉じる
+    public void closeInputPanel(View v) {
+        InputMethodManager mInputMethodManager = (InputMethodManager)getSystemService(Context.INPUT_METHOD_SERVICE);
+        mInputMethodManager.hideSoftInputFromWindow(v.getWindowToken(), 0);
+    }
+
+    // カメラを呼び出す
+    public void callCamera() {
+        Intent mIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+        mIntent.putExtra(MediaStore.EXTRA_OUTPUT, destUri);
+        startActivityForResult(mIntent, REQUEST_IMAGE);
+    }
+
+    // ギャラリーを呼び出す
+    public void callGallery() {
+        Intent mIntent = new Intent();
+        mIntent.setType("image/*");
+        mIntent.setAction(Intent.ACTION_PICK);
+        startActivityForResult(mIntent, REQUEST_IMAGE);
+    }
+
+    // メッセージを投稿する
+    public void postMessage(Uri inputUri) {
+        EditText messageBox = (EditText)findViewById(R.id.message);
+        String message = messageBox.getText().toString();
+        if(inputUri != null) {
+            Toast.makeText(getApplicationContext(), getResources().getString(R.string.post_message_before), Toast.LENGTH_SHORT).show();
+            if(SettingActivity.isServiceEnable(R.string.FACEBOOK_KEY, getApplicationContext())) {
+                // Facebook用の処理
+                if(tokens[TOKEN_FOR_FACEBOOK].length() != 0) {
+                    // アクセストークンの取得に成功したら投稿を行う
+                    ImagePostTask imagePost = new ImagePostTask(message, inputUri, FACEBOOK);
+                    imagePost.execute();
+                }
+                else {
+                    Toast.makeText(getApplicationContext(),
+                                   getResources().getString(R.string.service_name_facebook) + getResources().getString(R.string.post_login_failed),
+                                   Toast.LENGTH_SHORT).show();
+                }
+            }
+            if(SettingActivity.isServiceEnable(R.string.TWITTER_KEY, getApplicationContext())) {
+                // Twitter用の処理
+                if(tokens[TOKEN_FOR_TWITTER].length() != 0 && tokens[TOKEN_SECRET_FOR_TWITTER].length() != 0) {
+                    // アクセストークンの取得に成功したら投稿を行う
+                    ImagePostTask imagePost = new ImagePostTask(message, inputUri, TWITTER);
+                    imagePost.execute();
+                }
+                else {
+                    Toast.makeText(getApplicationContext(),
+                                   getResources().getString(R.string.service_name_twitter) + getResources().getString(R.string.post_login_failed),
+                                   Toast.LENGTH_SHORT).show();
+                }
+            }
+            messageBox.setText("");
+        }
+        else {
+            Toast.makeText(getApplicationContext(), getResources().getString(R.string.post_image_empty), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    class ImagePostTask extends AsyncTask<Void, Void, Void> {
+        private String message;
+        private Uri imageUri;
+        private int target;
+
+        public ImagePostTask(String inputMessage, Uri inputUri, int inputTarget) {
+            message = inputMessage;
+            imageUri = inputUri;
+            target = inputTarget;
+        }
+
+        @Override
+        public Void doInBackground(Void... params) {
+            ContentResolver resolver = getContentResolver();
+            switch(target) {
+            case FACEBOOK:
+                /***
+                 * Facebookに画像を投稿する
+                 * 参考:インドＩＴ留学メモ: AndroidでFacebook
+                 *     http://blog-indiait.blogspot.jp/2011/06/androidfacebook.html
+                 */
+                byte[] picture = null;
+                try {
+                    Bitmap mBitmap = MediaStore.Images.Media.getBitmap(resolver, imageUri);
+                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                    String type = resolver.getType(imageUri);
+                    if(type.equals("image/png")) {
+                        mBitmap.compress(Bitmap.CompressFormat.PNG, 100, baos);
+                    }
+                    else {
+                        mBitmap.compress(Bitmap.CompressFormat.JPEG, 100, baos);
+                    }
+                    picture = baos.toByteArray();
+                    baos.close();
+                }
+                catch(Exception e) {
+                    e.printStackTrace();
+                }
+                Bundle mBundle = new Bundle();
+                mBundle.putString("method", "photos.upload");
+                mBundle.putByteArray("photo", picture);
+                mBundle.putString("caption", message);
+                mAsyncRunner.request(null, mBundle, "POST", new ImagePostRequestListener(), null);
+
+                break;
+            case TWITTER:
+                /***
+                 * Twitterにメッセージを投稿する
+                 * 参考:androidとか日記: Twitter4j-2.2.xを使ったツイートのコーディング例
+                 *      http://blog.kyosuke25.com/2011/12/twitter4j-22x.html
+                 *
+                 * Twitterに画像を投稿する
+                 * 参考:AndroidとTwitter4Jで公式画像アップロードAPIを使う :  blog.loadlimit - digital matter -
+                 *     http://blog.loadlimits.info/2011/10/androidとtwitter4jで公式画像アップロードapiを使う/
+                 */
+                ConfigurationBuilder builder = new ConfigurationBuilder();
+                builder.setOAuthConsumerKey(CS_KEY_FOR_TWITTER);
+                builder.setOAuthConsumerSecret(CS_SECRET_FOR_TWITTER);
+                builder.setOAuthAccessToken(tokens[TOKEN_FOR_TWITTER]);
+                builder.setOAuthAccessTokenSecret(tokens[TOKEN_SECRET_FOR_TWITTER]);
+                builder.setMediaProvider("TWITTER");
+                Configuration config = builder.build();
+                ImageUpload mImageUpload = new ImageUploadFactory(config).getInstance();
+
+                Cursor mCursor = resolver.query(imageUri, null, null, null, null);
+                mCursor.moveToFirst();
+                final File image = new File(mCursor.getString(mCursor.getColumnIndex(MediaStore.MediaColumns.DATA)));
+                final String sendMessage = message;
+
+                try {
+                    mImageUpload.upload(image, sendMessage);
+                    mHandler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            Toast.makeText(getApplicationContext(),
+                                           getResources().getString(R.string.service_name_twitter) + getResources().getString(R.string.post_message_after),
+                                           Toast.LENGTH_SHORT).show();
+                        }
+                    });
+                }
+                catch (TwitterException e) {
+                    e.printStackTrace();
+                    mHandler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            Toast.makeText(getApplicationContext(),
+                                    getResources().getString(R.string.service_name_twitter) + getResources().getString(R.string.post_message_post_failed),
+                                    Toast.LENGTH_SHORT).show();
+                        }
+                    });
+                }
+
+                break;
+            default:
+                break;
+            }
+
+            return(null);
+        }
+    }
+
+    class LoginDialogListener implements Facebook.DialogListener {
+        @Override
+        public void onComplete(Bundle values) {
+            saveData("TokenForFacebook", values.getString(Facebook.TOKEN));
+            tokens[TOKEN_FOR_FACEBOOK] = values.getString(Facebook.TOKEN);
+            mFacebook.setAccessToken(tokens[TOKEN_FOR_FACEBOOK]);
+        }
+
+        @Override
+        public void onFacebookError(FacebookError e) {}
+
+        @Override
+        public void onError(DialogError e) {}
+
+        @Override
+        public void onCancel() {}
+    }
+
+    class ImagePostRequestListener implements AsyncFacebookRunner.RequestListener {
+        @Override
+        public void onComplete(String response, Object state) {
+            mHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    Toast.makeText(getApplicationContext(),
+                                   getResources().getString(R.string.service_name_facebook) + getResources().getString(R.string.post_message_after),
+                                   Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
+
+        @Override
+        public void onMalformedURLException(MalformedURLException e, Object state) {}
+
+        @Override
+        public void onIOException(IOException e, Object state) {}
+
+        @Override
+        public void onFileNotFoundException(FileNotFoundException e, Object state) {}
+
+        @Override
+        public void onFacebookError(FacebookError e, Object state) {}
     }
 }
