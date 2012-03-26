@@ -9,19 +9,23 @@
         </CheckBoxPreference>
     </PreferenceCategory>
     <PreferenceCategory android:title="@string/setting_service_title">
-    <PreferenceScreen android:title="Facebook">
-        <PreferenceCategory android:title="@string/service_name_facebook">
-            <CheckBoxPreference android:title="@string/setting_use_facebook_title"
-                android:key="@string/FACEBOOK_KEY">
-            </CheckBoxPreference>
-        </PreferenceCategory>
-    </PreferenceScreen>
-    <PreferenceScreen android:title="Twitter">
-        <PreferenceCategory android:title="@string/service_name_twitter">
-            <CheckBoxPreference android:title="@string/setting_use_twitter_title"
-                android:key="@string/TWITTER_KEY">
-            </CheckBoxPreference>
-        </PreferenceCategory>
-    </PreferenceScreen>
+	    <PreferenceScreen android:title="@string/service_name_facebook">
+	        <PreferenceCategory android:title="@string/service_name_facebook">
+	            <CheckBoxPreference android:title="@string/setting_use_facebook_title"
+	                android:key="setting_use_facebook"
+	                android:enabled="false" />
+	            <Preference android:title="@string/setting_regist_account"
+	                android:key="setting_regist_facebook" />
+	        </PreferenceCategory>
+	    </PreferenceScreen>
+	    <PreferenceScreen android:title="Twitter">
+	        <PreferenceCategory android:title="@string/service_name_twitter">
+	            <CheckBoxPreference android:title="@string/setting_use_twitter_title"
+	                android:key="setting_use_twitter"
+                    android:enabled="false" />
+	            <Preference android:title="@string/setting_regist_account"
+	                android:key="setting_regist_twitter" />
+	        </PreferenceCategory>
+	    </PreferenceScreen>
     </PreferenceCategory>
 </PreferenceScreen>

@@ -1,13 +1,12 @@
 package rio.div2;
 
-import rio.div2.SettingActivity;
+import rio.div2.Library;
 
 import android.app.Activity;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.net.Uri;
@@ -15,7 +14,6 @@ import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
-import android.preference.PreferenceManager;
 import android.provider.MediaStore;
 import android.widget.AdapterView;
 import android.widget.Button;
@@ -36,34 +34,16 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 
 import com.facebook.android.AsyncFacebookRunner;
-import com.facebook.android.DialogError;
 import com.facebook.android.Facebook;
 import com.facebook.android.FacebookError;
 
+import twitter4j.StatusUpdate;
+import twitter4j.Twitter;
 import twitter4j.TwitterException;
-import twitter4j.conf.Configuration;
-import twitter4j.conf.ConfigurationBuilder;
-import twitter4j.media.ImageUpload;
-import twitter4j.media.ImageUploadFactory;
+import twitter4j.TwitterFactory;
+import twitter4j.auth.AccessToken;
 
 public class TottepostActivity extends Activity {
-    // 定数の宣言
-    public static final int REQUEST_IMAGE = 0;
-
-    // Facebook用
-    public static final int FACEBOOK = 0;
-    public static final String APPID_FOR_FACEBOOK = "191124934334818";
-    public static final int REQUEST_FACEBOOK_OAUTH = 10;
-    public static final int TOKEN_FOR_FACEBOOK = 0;
-    // Twitter用
-    public static final int TWITTER = 1;
-    public static final String CALLBACK_URL_FOR_TWITTER = "http://www.google.co.jp/";
-    public static final String CS_KEY_FOR_TWITTER = "KZkiTK9pcyuGJFzZplIw";
-    public static final String CS_SECRET_FOR_TWITTER = "Kn0pibiqjV4MsbXMTQJh4Muo5WbQalvelr0NsT5liXw";
-    public static final int REQUEST_TWITTER_OAUTH = 11;
-    public static final int TOKEN_FOR_TWITTER = 1;
-    public static final int TOKEN_SECRET_FOR_TWITTER = 2;
-
     // 変数の宣言
     private Handler mHandler;
     private Uri destUri;
@@ -80,32 +60,6 @@ public class TottepostActivity extends Activity {
         setContentView(R.layout.main);
 
         mHandler = new Handler();
-
-        tokens = new String[3];
-        tokens[TOKEN_FOR_FACEBOOK] = loadData("TokenForFacebook");
-        tokens[TOKEN_FOR_TWITTER] = loadData("TokenForTwitter");
-        tokens[TOKEN_SECRET_FOR_TWITTER] = loadData("TokenSecretForTwitter");
-
-        mFacebook = new Facebook(APPID_FOR_FACEBOOK);
-        mFacebook.setAccessToken(tokens[TOKEN_FOR_FACEBOOK]);
-        mAsyncRunner = new AsyncFacebookRunner(mFacebook);
-
-        if(tokens[TOKEN_FOR_FACEBOOK].length() == 0) {
-            // Facebook用
-            // アクセストークンが存在しなければ認証を行う
-            mFacebook.authorize(TottepostActivity.this,
-                                new String[] {"offline_access", "publish_stream"},
-                                REQUEST_FACEBOOK_OAUTH, new LoginDialogListener());
-        }
-        if(tokens[TOKEN_FOR_TWITTER].length() == 0 || tokens[TOKEN_SECRET_FOR_TWITTER].length() == 0) {
-            // Twitter用
-            // アクセストークンが存在しなければ認証を行う
-            Intent mIntent = new Intent(TottepostActivity.this, OAuthActivity.class);
-            mIntent.putExtra(OAuthActivity.CALLBACK, CALLBACK_URL_FOR_TWITTER);
-            mIntent.putExtra(OAuthActivity.CONSUMER_KEY, CS_KEY_FOR_TWITTER);
-            mIntent.putExtra(OAuthActivity.CONSUMER_SECRET, CS_SECRET_FOR_TWITTER);
-            startActivityForResult(mIntent, REQUEST_TWITTER_OAUTH);
-        }
 
         Button postFromCameraButton = (Button)findViewById(R.id.post_from_camera);
         postFromCameraButton.setOnClickListener(new AdapterView.OnClickListener() {
@@ -124,30 +78,35 @@ public class TottepostActivity extends Activity {
                callGallery();
            }
         });
+    }
+    
+    @Override
+    public void onResume() {
+        super.onResume();
 
-        // 保存先のディレクトリを作成
-        File baseDir = new File(Environment.getExternalStorageDirectory(), "Tottepost");
-        try {
-            if(!baseDir.exists() && !baseDir.mkdirs()) {
-                Toast.makeText(getApplicationContext(), "保存用ディレクトリの作成に失敗しました。", Toast.LENGTH_SHORT).show();
-                finish();
-            }
-        }
-        catch(Exception e) {
-            e.printStackTrace();
-        }
+        tokens = new String[3];
+        tokens[Library.TOKEN_FOR_FACEBOOK] = Library.loadData("TokenForFacebook", getApplicationContext());
+        tokens[Library.TOKEN_FOR_TWITTER] = Library.loadData("TokenForTwitter", getApplicationContext());
+        tokens[Library.TOKEN_SECRET_FOR_TWITTER] = Library.loadData("TokenSecretForTwitter", getApplicationContext());
 
-        /***
-         * カメラで撮影した画像の保存先を明示する
-         * 参考:カメラやギャラリーピッカーからの画像取得周りまとめ2｜いろいろ備忘録
-         *     http://ameblo.jp/yolluca/entry-10895298488.html
-         */
-        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMddkkmmss");
-        String destName = baseDir.getAbsolutePath() + "/Tottepost_" + dateFormat.format(new Date()) + ".jpg";
-        ContentValues values = new ContentValues();
-        values.put(MediaStore.Images.Media.TITLE, destName);
-        values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
-        destUri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+        mFacebook = new Facebook(Library.APPID_FOR_FACEBOOK);
+        mFacebook.setAccessToken(tokens[Library.TOKEN_FOR_FACEBOOK]);
+        mAsyncRunner = new AsyncFacebookRunner(mFacebook);
+        
+        if(Library.isAnyServiceEnable(getApplicationContext())) {
+            Button postFromCameraButton = (Button)findViewById(R.id.post_from_camera);
+            postFromCameraButton.setEnabled(true);
+
+            Button postFromGalleryButton = (Button)findViewById(R.id.post_from_gallery);
+            postFromGalleryButton.setEnabled(true);
+        }
+        else {
+            Button postFromCameraButton = (Button)findViewById(R.id.post_from_camera);
+            postFromCameraButton.setEnabled(false);
+
+            Button postFromGalleryButton = (Button)findViewById(R.id.post_from_gallery);
+            postFromGalleryButton.setEnabled(false);
+        }
     }
 
     @Override
@@ -160,7 +119,7 @@ public class TottepostActivity extends Activity {
         super.onActivityResult(requestCode, resultCode, data);
 
         switch(requestCode) {
-        case REQUEST_IMAGE:
+        case Library.REQUEST_IMAGE:
             if(resultCode == Activity.RESULT_OK) {
                 if(data != null && data.getData() != null) {
                     postMessage(data.getData());
@@ -168,24 +127,6 @@ public class TottepostActivity extends Activity {
                 else {
                     postMessage(destUri);
                 }
-            }
-
-            break;
-        case REQUEST_FACEBOOK_OAUTH:
-            if(resultCode == Activity.RESULT_OK) {
-                mFacebook.authorizeCallback(requestCode, resultCode, data);
-                saveData("TokenForFacebook", data.getStringExtra(Facebook.TOKEN));
-                tokens[TOKEN_FOR_FACEBOOK] = data.getStringExtra(Facebook.TOKEN);
-                mFacebook.setAccessToken(tokens[TOKEN_FOR_FACEBOOK]);
-            }
-
-            break;
-        case REQUEST_TWITTER_OAUTH:
-            if(resultCode == Activity.RESULT_OK) {
-                saveData("TokenForTwitter", data.getStringExtra(OAuthActivity.TOKEN));
-                saveData("TokenSecretForTwitter", data.getStringExtra(OAuthActivity.TOKEN_SECRET));
-                tokens[TOKEN_FOR_TWITTER] = data.getStringExtra(OAuthActivity.TOKEN);
-                tokens[TOKEN_SECRET_FOR_TWITTER] = data.getStringExtra(OAuthActivity.TOKEN_SECRET);
             }
 
             break;
@@ -227,19 +168,6 @@ public class TottepostActivity extends Activity {
         return(returnBool);
     }
 
-    // データを保存する
-    public void saveData(String key, String value) {
-        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
-        prefs.edit().putString(key, value).commit();
-    }
-
-    // データを読み出す
-    public String loadData(String key) {
-        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
-
-        return(prefs.getString(key, ""));
-    }
-
     // 入力パネルを閉じる
     public void closeInputPanel(View v) {
         InputMethodManager mInputMethodManager = (InputMethodManager)getSystemService(Context.INPUT_METHOD_SERVICE);
@@ -248,9 +176,33 @@ public class TottepostActivity extends Activity {
 
     // カメラを呼び出す
     public void callCamera() {
+        // 保存先のディレクトリを作成
+        File baseDir = new File(Environment.getExternalStorageDirectory(), "Tottepost");
+        try {
+            if(!baseDir.exists() && !baseDir.mkdirs()) {
+                Toast.makeText(getApplicationContext(), "保存用ディレクトリの作成に失敗しました。", Toast.LENGTH_SHORT).show();
+                finish();
+            }
+        }
+        catch(Exception e) {
+            e.printStackTrace();
+        }
+        
+        /***
+         * カメラで撮影した画像の保存先を明示する
+         * 参考:カメラやギャラリーピッカーからの画像取得周りまとめ2｜いろいろ備忘録
+         *     http://ameblo.jp/yolluca/entry-10895298488.html
+         */
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMddkkmmss");
+        String destName = baseDir.getAbsolutePath() + "/Tottepost_" + dateFormat.format(new Date()) + ".jpg";
+        ContentValues values = new ContentValues();
+        values.put(MediaStore.Images.Media.TITLE, destName);
+        values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
+        destUri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+        
         Intent mIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
         mIntent.putExtra(MediaStore.EXTRA_OUTPUT, destUri);
-        startActivityForResult(mIntent, REQUEST_IMAGE);
+        startActivityForResult(mIntent, Library.REQUEST_IMAGE);
     }
 
     // ギャラリーを呼び出す
@@ -258,7 +210,7 @@ public class TottepostActivity extends Activity {
         Intent mIntent = new Intent();
         mIntent.setType("image/*");
         mIntent.setAction(Intent.ACTION_PICK);
-        startActivityForResult(mIntent, REQUEST_IMAGE);
+        startActivityForResult(mIntent, Library.REQUEST_IMAGE);
     }
 
     // メッセージを投稿する
@@ -267,11 +219,11 @@ public class TottepostActivity extends Activity {
         String message = messageBox.getText().toString();
         if(inputUri != null) {
             Toast.makeText(getApplicationContext(), getResources().getString(R.string.post_message_before), Toast.LENGTH_SHORT).show();
-            if(SettingActivity.isServiceEnable(R.string.FACEBOOK_KEY, getApplicationContext())) {
+            if(Library.isServiceEnable("setting_use_facebook", getApplicationContext())) {
                 // Facebook用の処理
-                if(tokens[TOKEN_FOR_FACEBOOK].length() != 0) {
+                if(tokens[Library.TOKEN_FOR_FACEBOOK].length() != 0) {
                     // アクセストークンの取得に成功したら投稿を行う
-                    ImagePostTask imagePost = new ImagePostTask(message, inputUri, FACEBOOK);
+                    ImagePostTask imagePost = new ImagePostTask(message, inputUri, Library.FACEBOOK);
                     imagePost.execute();
                 }
                 else {
@@ -280,11 +232,11 @@ public class TottepostActivity extends Activity {
                                    Toast.LENGTH_SHORT).show();
                 }
             }
-            if(SettingActivity.isServiceEnable(R.string.TWITTER_KEY, getApplicationContext())) {
+            if(Library.isServiceEnable("setting_use_twitter", getApplicationContext())) {
                 // Twitter用の処理
-                if(tokens[TOKEN_FOR_TWITTER].length() != 0 && tokens[TOKEN_SECRET_FOR_TWITTER].length() != 0) {
+                if(tokens[Library.TOKEN_FOR_TWITTER].length() != 0 && tokens[Library.TOKEN_SECRET_FOR_TWITTER].length() != 0) {
                     // アクセストークンの取得に成功したら投稿を行う
-                    ImagePostTask imagePost = new ImagePostTask(message, inputUri, TWITTER);
+                    ImagePostTask imagePost = new ImagePostTask(message, inputUri, Library.TWITTER);
                     imagePost.execute();
                 }
                 else {
@@ -315,7 +267,7 @@ public class TottepostActivity extends Activity {
         public Void doInBackground(Void... params) {
             ContentResolver resolver = getContentResolver();
             switch(target) {
-            case FACEBOOK:
+            case Library.FACEBOOK:
                 /***
                  * Facebookに画像を投稿する
                  * 参考:インドＩＴ留学メモ: AndroidでFacebook
@@ -345,32 +297,27 @@ public class TottepostActivity extends Activity {
                 mAsyncRunner.request(null, mBundle, "POST", new ImagePostRequestListener(), null);
 
                 break;
-            case TWITTER:
+            case Library.TWITTER:
                 /***
                  * Twitterにメッセージを投稿する
                  * 参考:androidとか日記: Twitter4j-2.2.xを使ったツイートのコーディング例
                  *      http://blog.kyosuke25.com/2011/12/twitter4j-22x.html
                  *
                  * Twitterに画像を投稿する
-                 * 参考:AndroidとTwitter4Jで公式画像アップロードAPIを使う :  blog.loadlimit - digital matter -
-                 *     http://blog.loadlimits.info/2011/10/androidとtwitter4jで公式画像アップロードapiを使う/
+                 * 参考:Twitter4Jで画像をアップロード << ぜんのホームページ
+                 *     http://zenjiro.wordpress.com/2011/11/28/upload-image-with-twitter4j/
                  */
-                ConfigurationBuilder builder = new ConfigurationBuilder();
-                builder.setOAuthConsumerKey(CS_KEY_FOR_TWITTER);
-                builder.setOAuthConsumerSecret(CS_SECRET_FOR_TWITTER);
-                builder.setOAuthAccessToken(tokens[TOKEN_FOR_TWITTER]);
-                builder.setOAuthAccessTokenSecret(tokens[TOKEN_SECRET_FOR_TWITTER]);
-                builder.setMediaProvider("TWITTER");
-                Configuration config = builder.build();
-                ImageUpload mImageUpload = new ImageUploadFactory(config).getInstance();
-
+                Twitter mTwitter = new TwitterFactory().getInstance();
+                mTwitter.setOAuthConsumer(Library.CS_KEY_FOR_TWITTER, Library.CS_SECRET_FOR_TWITTER);
+                mTwitter.setOAuthAccessToken(new AccessToken(tokens[Library.TOKEN_FOR_TWITTER], tokens[Library.TOKEN_SECRET_FOR_TWITTER]));
+                StatusUpdate status = new StatusUpdate(message);
                 Cursor mCursor = resolver.query(imageUri, null, null, null, null);
                 mCursor.moveToFirst();
-                final File image = new File(mCursor.getString(mCursor.getColumnIndex(MediaStore.MediaColumns.DATA)));
-                final String sendMessage = message;
+                File image = new File(mCursor.getString(mCursor.getColumnIndex(MediaStore.MediaColumns.DATA)));
+                status.media(image);
 
                 try {
-                    mImageUpload.upload(image, sendMessage);
+                    mTwitter.updateStatus(status);
                     mHandler.post(new Runnable() {
                         @Override
                         public void run() {
@@ -399,24 +346,6 @@ public class TottepostActivity extends Activity {
 
             return(null);
         }
-    }
-
-    class LoginDialogListener implements Facebook.DialogListener {
-        @Override
-        public void onComplete(Bundle values) {
-            saveData("TokenForFacebook", values.getString(Facebook.TOKEN));
-            tokens[TOKEN_FOR_FACEBOOK] = values.getString(Facebook.TOKEN);
-            mFacebook.setAccessToken(tokens[TOKEN_FOR_FACEBOOK]);
-        }
-
-        @Override
-        public void onFacebookError(FacebookError e) {}
-
-        @Override
-        public void onError(DialogError e) {}
-
-        @Override
-        public void onCancel() {}
     }
 
     class ImagePostRequestListener implements AsyncFacebookRunner.RequestListener {

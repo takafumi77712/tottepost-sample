@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">PostTest</string>
+    <string name="app_name">tottepost</string>
     <string name="main_hint_message">メッセージを入力</string>
     <string name="main_label_post_from_camera">カメラから投稿</string>
     <string name="main_label_post_from_gallery">ギャラリーから投稿</string>
@@ -12,6 +12,7 @@
     <string name="setting_use_comment_title">コメントを投稿する</string>
     <string name="setting_send_location_title">位置情報を送信する</string>
     <string name="setting_service_title">各サービスの設定</string>
+    <string name="setting_regist_account">アカウントを登録する</string>
     <string name="setting_use_facebook_title">Facebookに投稿する</string>
     <string name="setting_use_twitter_title">Twitterに投稿する</string>
 
@@ -23,6 +24,9 @@
 
     <string name="service_name_facebook">Facebook</string>
     <string name="service_name_twitter">Twitter</string>
+    
+    <string name="enable">有効</string>
+    <string name="disable">無効</string>
 
     <string name="post_message_empty">投稿するメッセージがありません</string>
     <string name="post_image_empty">投稿する画像がありません</string>
@@ -30,7 +34,4 @@
     <string name="post_message_post_failed">へのメッセージの投稿に失敗</string>
     <string name="post_message_before">メッセージを投稿中…</string>
     <string name="post_message_after">にメッセージを投稿完了</string>
-
-    <string name="FACEBOOK_KEY">setting_use_facebook</string>
-    <string name="TWITTER_KEY">setting_use_twitter</string>
 </resources>
