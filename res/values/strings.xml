@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">tottepost</string>
+    <string name="main_label_capture">撮影</string>
     <string name="main_hint_message">メッセージを入力</string>
     <string name="main_label_post_from_camera">カメラから投稿</string>
     <string name="main_label_post_from_gallery">ギャラリーから投稿</string>
@@ -27,11 +28,14 @@
     
     <string name="enable">有効</string>
     <string name="disable">無効</string>
+    
+    <string name="error_make_directory_failed">保存用ディレクトリの作成に失敗しました</string>
+    <string name="error_no_service_selected">投稿先のサービスが選択されていません</string>
 
     <string name="post_message_empty">投稿するメッセージがありません</string>
     <string name="post_image_empty">投稿する画像がありません</string>
     <string name="post_login_failed">へのログインに失敗</string>
-    <string name="post_message_post_failed">へのメッセージの投稿に失敗</string>
-    <string name="post_message_before">メッセージを投稿中…</string>
-    <string name="post_message_after">にメッセージを投稿完了</string>
+    <string name="post_message_post_failed">への画像の投稿に失敗</string>
+    <string name="post_message_before">画像を投稿中…</string>
+    <string name="post_message_after">に画像を投稿完了</string>
 </resources>

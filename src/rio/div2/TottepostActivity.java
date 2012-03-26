@@ -9,25 +9,36 @@ import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
 import android.graphics.Bitmap;
+import android.hardware.Camera;
+import android.hardware.Camera.PictureCallback;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.provider.MediaStore;
-import android.widget.AdapterView;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.Toast;
+import android.view.Display;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
+import android.view.MotionEvent;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
 import android.view.View;
+import android.view.Window;
+import android.view.WindowManager;
+import android.view.SurfaceHolder.Callback;
+import android.view.View.OnClickListener;
 import android.view.inputmethod.InputMethodManager;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.text.SimpleDateFormat;
@@ -50,6 +61,8 @@ public class TottepostActivity extends Activity {
 
     private Facebook mFacebook;
     private AsyncFacebookRunner mAsyncRunner;
+    
+    private Button captureButton;
 
     // 配列の宣言
     private String[] tokens;
@@ -57,29 +70,35 @@ public class TottepostActivity extends Activity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.main);
 
         mHandler = new Handler();
+        
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        requestWindowFeature(Window.FEATURE_NO_TITLE);
+        final CameraView ccd = new CameraView(this);
+        // カメラ画面
+        LinearLayout cameraView = new LinearLayout(this);
+        WindowManager wm = (WindowManager)getSystemService(Context.WINDOW_SERVICE);
+        Display display = wm.getDefaultDisplay();
+        cameraView.addView(ccd, new LinearLayout.LayoutParams(display.getWidth() - 100,
+                                                              display.getHeight()));
 
-        // "カメラから投稿"ボタンが押されたときの動作を設定
-        Button postFromCameraButton = (Button)findViewById(R.id.post_from_camera);
-        postFromCameraButton.setOnClickListener(new AdapterView.OnClickListener() {
-           @Override
-           public void onClick(View v) {
-               closeInputPanel(v);
-               callCamera();
-           }
-        });
+        // ボタン画面
+        LinearLayout buttonView = new LinearLayout(this);
+        // buttonView.setOrientation(LinearLayout.VERTICAL);
+        cameraView.addView(buttonView);
+        setContentView(cameraView);
 
-        // "ギャラリーから投稿"ボタンが押されたときの動作を設定
-        Button postFromGalleryButton = (Button)findViewById(R.id.post_from_gallery);
-        postFromGalleryButton.setOnClickListener(new AdapterView.OnClickListener() {
-           @Override
-           public void onClick(View v) {
-               closeInputPanel(v);
-               callGallery();
-           }
+        captureButton = new Button(this);
+        captureButton.setText(getResources().getString(R.string.main_label_capture));
+        captureButton.setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                captureButton.setEnabled(false);
+                ccd.capture();
+            }
         });
+        buttonView.addView(captureButton, new LinearLayout.LayoutParams(100, display.getHeight()));
     }
     
     @Override
@@ -93,23 +112,6 @@ public class TottepostActivity extends Activity {
         mFacebook = new Facebook(Library.APPID_FOR_FACEBOOK);
         mFacebook.setAccessToken(tokens[Library.TOKEN_FOR_FACEBOOK]);
         mAsyncRunner = new AsyncFacebookRunner(mFacebook);
-        
-        if(Library.isAnyServiceEnable(getApplicationContext())) {
-            // 1個以上のサービスが有効になっていれば投稿ボタンを有効に
-            Button postFromCameraButton = (Button)findViewById(R.id.post_from_camera);
-            postFromCameraButton.setEnabled(true);
-
-            Button postFromGalleryButton = (Button)findViewById(R.id.post_from_gallery);
-            postFromGalleryButton.setEnabled(true);
-        }
-        else {
-            // 全てのサービスが無効になっていれば投稿ボタンを無効に
-            Button postFromCameraButton = (Button)findViewById(R.id.post_from_camera);
-            postFromCameraButton.setEnabled(false);
-
-            Button postFromGalleryButton = (Button)findViewById(R.id.post_from_gallery);
-            postFromGalleryButton.setEnabled(false);
-        }
         
         destUri = null;
     }
@@ -195,7 +197,7 @@ public class TottepostActivity extends Activity {
         File baseDir = new File(Environment.getExternalStorageDirectory(), "Tottepost");
         try {
             if(!baseDir.exists() && !baseDir.mkdirs()) {
-                Toast.makeText(getApplicationContext(), "保存用ディレクトリの作成に失敗しました。", Toast.LENGTH_SHORT).show();
+                Toast.makeText(getApplicationContext(), getResources().getString(R.string.error_make_directory_failed), Toast.LENGTH_SHORT).show();
                 finish();
             }
         }
@@ -231,8 +233,8 @@ public class TottepostActivity extends Activity {
 
     // メッセージを投稿する
     public void postMessage(Uri inputUri) {
-        EditText messageBox = (EditText)findViewById(R.id.message);
-        String message = messageBox.getText().toString();
+        // EditText messageBox = (EditText)findViewById(R.id.message);
+        String message = ""; // messageBox.getText().toString();
         if(inputUri != null) {
             Toast.makeText(getApplicationContext(), getResources().getString(R.string.post_message_before), Toast.LENGTH_SHORT).show();
             if(Library.isServiceEnable("setting_use_facebook", getApplicationContext())) {
@@ -261,7 +263,7 @@ public class TottepostActivity extends Activity {
                                    Toast.LENGTH_SHORT).show();
                 }
             }
-            messageBox.setText("");
+            // messageBox.setText("");
         }
         else {
             Toast.makeText(getApplicationContext(), getResources().getString(R.string.post_image_empty), Toast.LENGTH_SHORT).show();
@@ -332,19 +334,28 @@ public class TottepostActivity extends Activity {
                 File image = new File(mCursor.getString(mCursor.getColumnIndex(MediaStore.MediaColumns.DATA)));
                 status.media(image);
 
-                try {
-                    mTwitter.updateStatus(status);
-                    mHandler.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            Toast.makeText(getApplicationContext(),
-                                           getResources().getString(R.string.service_name_twitter) + getResources().getString(R.string.post_message_after),
-                                           Toast.LENGTH_SHORT).show();
-                        }
-                    });
+                boolean complete = false;
+                int count = 0;
+                // 投稿に成功するか5回までリトライする
+                while(!complete && count < 5) {
+                    try {
+                        mTwitter.updateStatus(status);
+                        mHandler.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                Toast.makeText(getApplicationContext(),
+                                               getResources().getString(R.string.service_name_twitter) + getResources().getString(R.string.post_message_after),
+                                               Toast.LENGTH_SHORT).show();
+                            }
+                        });
+                        complete = true;
+                    }
+                    catch (TwitterException e) {
+                        e.printStackTrace();
+                        count++;
+                    }
                 }
-                catch (TwitterException e) {
-                    e.printStackTrace();
+                if(!complete) {
                     mHandler.post(new Runnable() {
                         @Override
                         public void run() {
@@ -361,6 +372,147 @@ public class TottepostActivity extends Activity {
             }
 
             return(null);
+        }
+    }
+
+    // カメラ内部class
+    public class CameraView extends SurfaceView implements Callback, PictureCallback {
+        private Camera camera = null;
+        private File baseDir;
+
+        public CameraView(Context context) {
+            super(context);
+            SurfaceHolder holder = getHolder();
+            holder.addCallback(this);
+            holder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
+            
+            //  保存先のディレクトリを作成
+            baseDir = new File(Environment.getExternalStorageDirectory(), "Tottepost");
+            try {
+                if(!baseDir.exists() && !baseDir.mkdirs()) {
+                    Toast.makeText(getApplicationContext(), getResources().getString(R.string.error_make_directory_failed), Toast.LENGTH_SHORT).show();
+                    finish();
+                }
+            }
+            catch(Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        // surface起動時の処理
+        @Override
+        public void surfaceCreated(SurfaceHolder holder) {
+            try {
+                camera = Camera.open();
+                camera.setPreviewDisplay(holder);
+                // camera.setDisplayOrientation(90);
+            }
+            catch(IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        @Override
+        public void surfaceChanged(SurfaceHolder holder, int f, int w, int h) {
+            Camera.Parameters p = camera.getParameters();
+            // p.setPreviewSize(w,h);
+            camera.setParameters(p);
+            camera.startPreview();
+        }
+
+        // surface終了時の処理
+        @Override
+        public void surfaceDestroyed(SurfaceHolder holder) {
+            camera.setPreviewCallback(null); 
+            camera.stopPreview();
+            camera.release();
+            camera = null; 
+        }
+
+        // 撮影後処理と画像の保存
+        @Override
+        public void onPictureTaken(byte[] data, Camera camera) {
+            if(Library.isAnyServiceEnable(TottepostActivity.this)) {
+                // 1つ以上のサービスが有効になっている場合は撮影した画像を投稿する
+                SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMddkkmmss");
+                String fileName = "Tottepost_" + dateFormat.format(new Date()) + ".jpg";
+                String destPath = baseDir.getAbsolutePath() + "/" + fileName;
+                ContentValues values = new ContentValues();
+                values.put(MediaStore.Images.Media.TITLE, fileName);
+                values.put("_data", destPath);
+                values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
+                destUri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+                
+                FileOutputStream fos = null;
+                // SDカードへ出力
+                try {
+                    fos = new FileOutputStream(destPath);
+                }
+                catch(FileNotFoundException e) {
+                    e.printStackTrace();
+                }
+    
+                if(fos != null){
+                    try {
+                        fos.write(data);
+                        fos.close();
+                        fos = null;
+                    }
+                    catch(IOException e) {
+                        getContentResolver().delete(destUri, null, null);
+                        e.printStackTrace();
+                    }
+                }
+                
+                postMessage(destUri);
+            }
+            else {
+                // 全てのサービスが無効になっている場合は撮影した画像を投稿しない
+                mHandler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        Toast.makeText(getApplicationContext(), getResources().getString(R.string.error_no_service_selected), Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
+
+            // プレビュー再開
+            camera.startPreview();
+            captureButton.setEnabled(true);
+        }
+
+        // プレビュー画面をタッチしたときの動作
+        // ハードの決定ボタン含みます
+        @Override
+        public boolean onTouchEvent(MotionEvent me) {
+            if(me.getAction() == MotionEvent.ACTION_DOWN) {
+                // xperiaのみ
+                // 端末ごとにオートフォーカスの使用方法が違うため、オートフォーカスでエラーを吐く場合、
+                // autoFocus();をコメントアウトしてください。近日中に改善予定。
+                // autoFocus();
+                // camera.takePicture(null, null, this);
+            }
+            return(true);
+        }
+
+        // main activityでの撮影ボタンの動作
+        public boolean capture() {
+            // xperiaのみ
+            autoFocus();
+            camera.takePicture(null, null, this);
+            return(true);
+        }
+
+        // オートフォーカス
+        public void autoFocus(){
+            if(camera != null){
+                camera.autoFocus(new Camera.AutoFocusCallback() {
+                    @Override
+                    public void onAutoFocus(boolean success, Camera camera){
+                        camera.autoFocus(null);    
+                    }
+                });
+            }
         }
     }
 

@@ -6,6 +6,7 @@
     <uses-sdk android:minSdkVersion="8" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.CAMERA" />
     <application
         android:icon="@drawable/ic_launcher"
         android:label="@string/app_name" >
@@ -13,7 +14,7 @@
             android:name=".TottepostActivity"
             android:label="@string/app_name"
             android:launchMode="singleTask"
-            android:screenOrientation="portrait" >
+            android:screenOrientation="landscape" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -21,20 +22,19 @@
         </activity>
         <activity
             android:name=".OAuthActivity"
-            android:label="@string/oauth_title"
-            android:screenOrientation="portrait" >
+            android:label="@string/oauth_title" >
         </activity>
         <activity
             android:name=".SettingActivity"
             android:label="@string/setting_title"
             android:launchMode="singleTask"
-            android:screenOrientation="portrait" >
+            android:screenOrientation="landscape" >
         </activity>
         <activity
             android:name=".AboutActivity"
             android:label="@string/about_title"
             android:launchMode="singleTask"
-            android:screenOrientation="portrait" >
+            android:screenOrientation="landscape" >
         </activity>
     </application>
 </manifest>
