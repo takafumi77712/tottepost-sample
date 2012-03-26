@@ -122,6 +122,12 @@ public class SettingActivity extends PreferenceActivity {
             Library.saveData("TokenForFacebook", values.getString(Facebook.TOKEN), getApplicationContext());
             tokens[Library.TOKEN_FOR_FACEBOOK] = values.getString(Facebook.TOKEN);
             mFacebook.setAccessToken(tokens[Library.TOKEN_FOR_FACEBOOK]);
+            
+            if(tokens[Library.TOKEN_FOR_FACEBOOK].length() != 0) {
+                // Facebookのアクセストークンがあればチェックボックスを有効に
+                CheckBoxPreference checkBoxForFacebook = (CheckBoxPreference)findPreference("setting_use_facebook");
+                checkBoxForFacebook.setEnabled(true);
+            }
         }
 
         @Override

@@ -27,14 +27,12 @@
         <activity
             android:name=".SettingActivity"
             android:label="@string/setting_title"
-            android:launchMode="singleTask"
-            android:screenOrientation="landscape" >
+            android:launchMode="singleTask" >
         </activity>
         <activity
             android:name=".AboutActivity"
             android:label="@string/about_title"
-            android:launchMode="singleTask"
-            android:screenOrientation="landscape" >
+            android:launchMode="singleTask" >
         </activity>
     </application>
 </manifest>
