@@ -1,5 +1,7 @@
 package rio.div2;
 
+import java.util.ArrayList;
+
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
@@ -7,9 +9,10 @@ import android.preference.PreferenceManager;
 public class Library {
     // 定数の宣言
     // リクエストコード
-    public static final int REQUEST_IMAGE = 0;
+    public static final int REQUEST_IMAGE_FROM_CAMERA  = 0;
+    public static final int REQUEST_IMAGE_FROM_GALLERY = 1;
     public static final int REQUEST_FACEBOOK_OAUTH = 10;
-    public static final int REQUEST_TWITTER_OAUTH = 11;
+    public static final int REQUEST_TWITTER_OAUTH  = 11;
     // トークンの添字
     public static final int TOKEN_FOR_FACEBOOK = 0;
     public static final int TOKEN_FOR_TWITTER = 1;
@@ -64,6 +67,18 @@ public class Library {
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
 
         return(prefs.getString(key, ""));
+    }
+    
+    // トークンを配列に格納して返す
+    public static String[] loadTokens(Context context) {
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
+        ArrayList<String> retTokens = new ArrayList<String>();
+        
+        retTokens.add(prefs.getString("TokenForFacebook", ""));
+        retTokens.add(prefs.getString("TokenForTwitter", ""));
+        retTokens.add(prefs.getString("TokenSecretForTwitter", ""));
+        
+        return(retTokens.toArray(new String[0]));
     }
     
     private Library() {}

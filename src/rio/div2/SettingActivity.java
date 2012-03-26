@@ -59,10 +59,7 @@ public class SettingActivity extends PreferenceActivity {
     public void onResume() {
         super.onResume();
 
-        tokens = new String[3];
-        tokens[Library.TOKEN_FOR_FACEBOOK] = Library.loadData("TokenForFacebook", getApplicationContext());
-        tokens[Library.TOKEN_FOR_TWITTER] = Library.loadData("TokenForTwitter", getApplicationContext());
-        tokens[Library.TOKEN_SECRET_FOR_TWITTER] = Library.loadData("TokenSecretForTwitter", getApplicationContext());
+        tokens = Library.loadTokens(getApplicationContext());
 
         mFacebook = new Facebook(Library.APPID_FOR_FACEBOOK);
         mFacebook.setAccessToken(tokens[Library.TOKEN_FOR_FACEBOOK]);

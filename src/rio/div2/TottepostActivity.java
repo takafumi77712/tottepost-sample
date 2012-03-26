@@ -61,6 +61,7 @@ public class TottepostActivity extends Activity {
 
         mHandler = new Handler();
 
+        // "カメラから投稿"ボタンが押されたときの動作を設定
         Button postFromCameraButton = (Button)findViewById(R.id.post_from_camera);
         postFromCameraButton.setOnClickListener(new AdapterView.OnClickListener() {
            @Override
@@ -70,6 +71,7 @@ public class TottepostActivity extends Activity {
            }
         });
 
+        // "ギャラリーから投稿"ボタンが押されたときの動作を設定
         Button postFromGalleryButton = (Button)findViewById(R.id.post_from_gallery);
         postFromGalleryButton.setOnClickListener(new AdapterView.OnClickListener() {
            @Override
@@ -84,16 +86,16 @@ public class TottepostActivity extends Activity {
     public void onResume() {
         super.onResume();
 
-        tokens = new String[3];
-        tokens[Library.TOKEN_FOR_FACEBOOK] = Library.loadData("TokenForFacebook", getApplicationContext());
-        tokens[Library.TOKEN_FOR_TWITTER] = Library.loadData("TokenForTwitter", getApplicationContext());
-        tokens[Library.TOKEN_SECRET_FOR_TWITTER] = Library.loadData("TokenSecretForTwitter", getApplicationContext());
+        // トークンを読み込み
+        tokens = Library.loadTokens(getApplicationContext());
 
+        // Facebook用のインスタンスを生成
         mFacebook = new Facebook(Library.APPID_FOR_FACEBOOK);
         mFacebook.setAccessToken(tokens[Library.TOKEN_FOR_FACEBOOK]);
         mAsyncRunner = new AsyncFacebookRunner(mFacebook);
         
         if(Library.isAnyServiceEnable(getApplicationContext())) {
+            // 1個以上のサービスが有効になっていれば投稿ボタンを有効に
             Button postFromCameraButton = (Button)findViewById(R.id.post_from_camera);
             postFromCameraButton.setEnabled(true);
 
@@ -101,17 +103,15 @@ public class TottepostActivity extends Activity {
             postFromGalleryButton.setEnabled(true);
         }
         else {
+            // 全てのサービスが無効になっていれば投稿ボタンを無効に
             Button postFromCameraButton = (Button)findViewById(R.id.post_from_camera);
             postFromCameraButton.setEnabled(false);
 
             Button postFromGalleryButton = (Button)findViewById(R.id.post_from_gallery);
             postFromGalleryButton.setEnabled(false);
         }
-    }
-
-    @Override
-    public void onDestroy() {
-        super.onDestroy();
+        
+        destUri = null;
     }
 
     @Override
@@ -119,14 +119,29 @@ public class TottepostActivity extends Activity {
         super.onActivityResult(requestCode, resultCode, data);
 
         switch(requestCode) {
-        case Library.REQUEST_IMAGE:
+        case Library.REQUEST_IMAGE_FROM_CAMERA:
+            // カメラから画像を取得した場合
             if(resultCode == Activity.RESULT_OK) {
+                Uri mUri = destUri;
+                destUri = null;
                 if(data != null && data.getData() != null) {
+                    // data.getData()でUriが取得できた場合はそれを使う
                     postMessage(data.getData());
                 }
                 else {
-                    postMessage(destUri);
+                    // 取得できなければ用意しておいたUriを使う
+                    postMessage(mUri);
                 }
+            }
+            else if(resultCode == Activity.RESULT_CANCELED) {
+                getContentResolver().delete(destUri, null, null);
+            }
+
+            break;
+        case Library.REQUEST_IMAGE_FROM_GALLERY:
+            // ギャラリーから画像を取得した場合
+            if(resultCode == Activity.RESULT_OK) {
+                postMessage(data.getData());
             }
 
             break;
@@ -194,15 +209,16 @@ public class TottepostActivity extends Activity {
          *     http://ameblo.jp/yolluca/entry-10895298488.html
          */
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMddkkmmss");
-        String destName = baseDir.getAbsolutePath() + "/Tottepost_" + dateFormat.format(new Date()) + ".jpg";
+        String fileName = "Tottepost_" + dateFormat.format(new Date()) + ".jpg";
         ContentValues values = new ContentValues();
-        values.put(MediaStore.Images.Media.TITLE, destName);
+        values.put(MediaStore.Images.Media.TITLE, fileName);
+        values.put("_data", baseDir.getAbsolutePath() + "/" + fileName);
         values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
         destUri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
         
         Intent mIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
         mIntent.putExtra(MediaStore.EXTRA_OUTPUT, destUri);
-        startActivityForResult(mIntent, Library.REQUEST_IMAGE);
+        startActivityForResult(mIntent, Library.REQUEST_IMAGE_FROM_CAMERA);
     }
 
     // ギャラリーを呼び出す
@@ -210,7 +226,7 @@ public class TottepostActivity extends Activity {
         Intent mIntent = new Intent();
         mIntent.setType("image/*");
         mIntent.setAction(Intent.ACTION_PICK);
-        startActivityForResult(mIntent, Library.REQUEST_IMAGE);
+        startActivityForResult(mIntent, Library.REQUEST_IMAGE_FROM_GALLERY);
     }
 
     // メッセージを投稿する
