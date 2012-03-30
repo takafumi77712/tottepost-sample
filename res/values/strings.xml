@@ -3,8 +3,9 @@
     <string name="app_name">tottepost</string>
     <string name="main_label_capture">撮影</string>
     <string name="main_hint_message">メッセージを入力</string>
-    <string name="main_label_post_from_camera">カメラから投稿</string>
-    <string name="main_label_post_from_gallery">ギャラリーから投稿</string>
+    
+    <string name="dialog_title">メッセージ入力画面</string>
+    <string name="dialog_label_post">投稿</string>
 
     <string name="oauth_title">OAuth認証</string>
 
@@ -31,6 +32,9 @@
     
     <string name="error_make_directory_failed">保存用ディレクトリの作成に失敗しました</string>
     <string name="error_no_service_selected">投稿先のサービスが選択されていません</string>
+    <string name="error_launch_camera_failed">カメラの起動に失敗しました</string>
+    <string name="error_missing_parameters">パラメータがありません</string>
+    <string name="error_upload_failed">アップロード失敗</string>
 
     <string name="post_message_empty">投稿するメッセージがありません</string>
     <string name="post_image_empty">投稿する画像がありません</string>

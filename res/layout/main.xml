@@ -1,29 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:orientation="vertical" >
-    <EditText android:id="@+id/message"
+    android:layout_height="match_parent" >
+    <SurfaceView android:id="@+id/preview"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="@string/main_hint_message"
-        android:inputType="text"
-        android:maxLines="1" />
-    <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal" >
-        <Button android:id="@+id/post_from_camera"
-            android:layout_width="match_parent"
+        android:layout_height="match_parent"
+	    android:layout_centerHorizontal="true"
+	    android:layout_centerVertical="true" />
+    <RelativeLayout android:layout_width="match_parent"
+        android:layout_height="100dip"
+        android:layout_alignParentBottom="true"
+        android:gravity="center_vertical" >
+        <Button android:id="@+id/capture"
+            android:layout_width="100dip"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="@string/main_label_post_from_camera"
-            android:enabled="false" />
-        <Button android:id="@+id/post_from_gallery"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="@string/main_label_post_from_gallery"
-            android:enabled="false" />
-    </LinearLayout>
-</LinearLayout>
+            android:layout_centerHorizontal="true"
+            android:layout_alignParentBottom="true"
+            android:text="@string/main_label_capture" />
+    </RelativeLayout>
+</RelativeLayout>

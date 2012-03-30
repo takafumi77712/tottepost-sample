@@ -11,6 +11,7 @@ public class Library {
     // リクエストコード
     public static final int REQUEST_IMAGE_FROM_CAMERA  = 0;
     public static final int REQUEST_IMAGE_FROM_GALLERY = 1;
+    public static final int REQUEST_INPUT_COMMENT = 2;
     public static final int REQUEST_FACEBOOK_OAUTH = 10;
     public static final int REQUEST_TWITTER_OAUTH  = 11;
     // トークンの添字

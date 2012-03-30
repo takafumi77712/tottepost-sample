@@ -9,8 +9,10 @@ import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Matrix;
 import android.hardware.Camera;
-import android.hardware.Camera.PictureCallback;
+import android.media.ExifInterface;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
@@ -18,21 +20,19 @@ import android.os.Environment;
 import android.os.Handler;
 import android.provider.MediaStore;
 import android.widget.Button;
-import android.widget.EditText;
-import android.widget.LinearLayout;
 import android.widget.Toast;
 import android.view.Display;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.MotionEvent;
+import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
-import android.view.Window;
+import android.view.ViewGroup;
 import android.view.WindowManager;
-import android.view.SurfaceHolder.Callback;
-import android.view.View.OnClickListener;
+import android.view.View.OnTouchListener;
 import android.view.inputmethod.InputMethodManager;
 
 import java.io.ByteArrayOutputStream;
@@ -43,6 +43,7 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.List;
 
 import com.facebook.android.AsyncFacebookRunner;
 import com.facebook.android.Facebook;
@@ -54,15 +55,33 @@ import twitter4j.TwitterException;
 import twitter4j.TwitterFactory;
 import twitter4j.auth.AccessToken;
 
-public class TottepostActivity extends Activity {
+public class TottepostActivity extends Activity implements SurfaceHolder.Callback, Camera.PictureCallback {
     // 変数の宣言
+    // mHandler - 他スレッドからのUIの更新に使用
     private Handler mHandler;
-    private Uri destUri;
+    // capturing - 撮影中かどうか
+    // true:撮影中 false:非撮影中
+    private boolean capturing;
+    // focused - オートフォーカス済みかどうか
+    // true:オートフォーカス済み false:オートフォーカス前
+    private boolean focused;
+    // focusing - オートフォーカス中かどうか
+    // true:オートフォーカス中 false:非オートフォーカス中
+    private boolean focusing;
+    // uploading - アップロード中かどうか
+    // true:アップロード中 false:非アップロード中
+    private boolean uploading;
+    // baseDir - 保存用ディレクトリ
+    private File baseDir;
+    // captureButton - 撮影ボタン
+    private Button captureButton;
+    // preview - プレビュー部分
+    private SurfaceView preview;
+    // mCamera - カメラのインスタンス
+    private Camera mCamera;
 
     private Facebook mFacebook;
     private AsyncFacebookRunner mAsyncRunner;
-    
-    private Button captureButton;
 
     // 配列の宣言
     private String[] tokens;
@@ -72,39 +91,109 @@ public class TottepostActivity extends Activity {
         super.onCreate(savedInstanceState);
 
         mHandler = new Handler();
-        
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-        requestWindowFeature(Window.FEATURE_NO_TITLE);
-        final CameraView ccd = new CameraView(this);
-        // カメラ画面
-        LinearLayout cameraView = new LinearLayout(this);
-        WindowManager wm = (WindowManager)getSystemService(Context.WINDOW_SERVICE);
-        Display display = wm.getDefaultDisplay();
-        cameraView.addView(ccd, new LinearLayout.LayoutParams(display.getWidth() - 100,
-                                                              display.getHeight()));
 
-        // ボタン画面
-        LinearLayout buttonView = new LinearLayout(this);
-        // buttonView.setOrientation(LinearLayout.VERTICAL);
-        cameraView.addView(buttonView);
-        setContentView(cameraView);
+        /***
+         * スリープを無効にする
+         * 参考:画面をスリープ状態にさせないためには - 逆引きAndroid入門
+         *      http://www.adakoda.com/android/000207.html
+         */
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
-        captureButton = new Button(this);
-        captureButton.setText(getResources().getString(R.string.main_label_capture));
-        captureButton.setOnClickListener(new OnClickListener() {
+        setContentView(R.layout.main);
+
+        /***
+         * Keep Aliveを無効にする
+         * 参考:Broken pipe exception - Twitter4J J | Google グループ
+         *      http://groups.google.com/group/twitter4j-j/browse_thread/thread/56b18baac1846ab2?pli=1
+         */
+        System.setProperty("http.keepAlive", "false");
+        System.setProperty("https.keepAlive", "false");
+
+        capturing = false;
+        focused = false;
+        focusing = false;
+        uploading = false;
+
+        // 保存用ディレクトリの作成
+        baseDir = new File(Environment.getExternalStorageDirectory(), "tottepost");
+        try {
+            if(!baseDir.exists() && !baseDir.mkdirs()) {
+                Toast.makeText(getApplicationContext(), getResources().getString(R.string.error_make_directory_failed), Toast.LENGTH_SHORT).show();
+                finish();
+            }
+        }
+        catch(Exception e) {
+            e.printStackTrace();
+        }
+
+        captureButton = (Button)findViewById(R.id.capture);
+        captureButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                captureButton.setEnabled(false);
-                ccd.capture();
+                if(!capturing) {
+                    capturing = true;
+                    captureButton.setEnabled(false);
+                    mCamera.takePicture(null, null, null, TottepostActivity.this);
+                    /*
+                    if(focused) {
+                        // オートフォーカス済みであればそのまま撮影
+                        mCamera.takePicture(null, null, null, TottepostActivity.this);
+                    }
+                    else {
+                        // オートフォーカス前であればオートフォーカス後に撮影
+                        mCamera.autoFocus(new Camera.AutoFocusCallback() {
+                            @Override
+                            public void onAutoFocus(boolean success, Camera camera) {
+                                // 一部端末では、プレビューを止めた状態での撮影が行えないようなので、
+                                // プレビューを止めずに撮影する
+                                // mCamera.stopPreview();
+                                try {
+                                    Thread.sleep(300);
+                                }
+                                catch(Exception e) {
+                                    e.printStackTrace();
+                                }
+                                mCamera.takePicture(null, null, null, TottepostActivity.this);
+                            }
+                        });
+                    }
+                    */
+                }
             }
         });
-        buttonView.addView(captureButton, new LinearLayout.LayoutParams(100, display.getHeight()));
+
+        preview = (SurfaceView)findViewById(R.id.preview);
+        preview.getHolder().addCallback(TottepostActivity.this);
+        preview.getHolder().setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
+        preview.setOnTouchListener(new OnTouchListener() {
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                // 画面がタッチされたらオートフォーカスを実行
+                if(!focusing) {
+                    // オートフォーカス中でなければオートフォーカスを実行
+                    // フラグを更新
+                    focusing = true;
+                    
+                    captureButton.setEnabled(false);
+                    mCamera.autoFocus(new Camera.AutoFocusCallback() {
+                        @Override
+                        public void onAutoFocus(boolean success, Camera camera) {
+                            focusing = false;
+                            captureButton.setEnabled(true);
+                        }
+                    });
+                    focused = true;
+                }
+
+                return(false);
+            }
+        });
     }
     
     @Override
     public void onResume() {
         super.onResume();
-
+        
         // トークンを読み込み
         tokens = Library.loadTokens(getApplicationContext());
 
@@ -112,8 +201,19 @@ public class TottepostActivity extends Activity {
         mFacebook = new Facebook(Library.APPID_FOR_FACEBOOK);
         mFacebook.setAccessToken(tokens[Library.TOKEN_FOR_FACEBOOK]);
         mAsyncRunner = new AsyncFacebookRunner(mFacebook);
-        
-        destUri = null;
+
+        surfaceChanged(preview.getHolder(), 0, 0, 0);
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+
+        if(mCamera != null) {
+            mCamera.stopPreview();
+            mCamera.release();
+            mCamera = null;
+        }
     }
 
     @Override
@@ -121,30 +221,20 @@ public class TottepostActivity extends Activity {
         super.onActivityResult(requestCode, resultCode, data);
 
         switch(requestCode) {
-        case Library.REQUEST_IMAGE_FROM_CAMERA:
-            // カメラから画像を取得した場合
-            if(resultCode == Activity.RESULT_OK) {
-                Uri mUri = destUri;
-                destUri = null;
-                if(data != null && data.getData() != null) {
-                    // data.getData()でUriが取得できた場合はそれを使う
-                    postMessage(data.getData());
-                }
-                else {
-                    // 取得できなければ用意しておいたUriを使う
-                    postMessage(mUri);
-                }
-            }
-            else if(resultCode == Activity.RESULT_CANCELED) {
-                getContentResolver().delete(destUri, null, null);
-            }
-
-            break;
         case Library.REQUEST_IMAGE_FROM_GALLERY:
             // ギャラリーから画像を取得した場合
             if(resultCode == Activity.RESULT_OK) {
-                postMessage(data.getData());
+                postMessage("", data.getData());
             }
+
+            break;
+        case Library.REQUEST_INPUT_COMMENT:
+            if(resultCode == Activity.RESULT_OK) {
+                String message = data.getStringExtra("message");
+                Uri imageUri = data.getData();
+                postMessage(message, imageUri);
+            }
+            this.onResume();
 
             break;
         default:
@@ -168,17 +258,17 @@ public class TottepostActivity extends Activity {
     public boolean onOptionsItemSelected(MenuItem item) {
         boolean returnBool = super.onOptionsItemSelected(item);
 
-        Intent intent = new Intent();
+        Intent mIntent;
         switch(item.getItemId()) {
         case R.id.menu_setting:
             // 設定画面を開く
-            intent.setClassName(getPackageName(), getPackageName() + ".SettingActivity");
-            startActivity(intent);
+            mIntent = new Intent(TottepostActivity.this, SettingActivity.class);
+            startActivity(mIntent);
             break;
         case R.id.menu_about:
             // About画面を開く
-            intent.setClassName(getPackageName(), getPackageName() + ".AboutActivity");
-            startActivity(intent);
+            mIntent = new Intent(TottepostActivity.this, AboutActivity.class);
+            startActivity(mIntent);
             break;
         }
 
@@ -191,37 +281,200 @@ public class TottepostActivity extends Activity {
         mInputMethodManager.hideSoftInputFromWindow(v.getWindowToken(), 0);
     }
 
-    // カメラを呼び出す
-    public void callCamera() {
-        // 保存先のディレクトリを作成
-        File baseDir = new File(Environment.getExternalStorageDirectory(), "Tottepost");
-        try {
-            if(!baseDir.exists() && !baseDir.mkdirs()) {
-                Toast.makeText(getApplicationContext(), getResources().getString(R.string.error_make_directory_failed), Toast.LENGTH_SHORT).show();
-                finish();
-            }
-        }
-        catch(Exception e) {
-            e.printStackTrace();
-        }
-        
-        /***
-         * カメラで撮影した画像の保存先を明示する
-         * 参考:カメラやギャラリーピッカーからの画像取得周りまとめ2｜いろいろ備忘録
-         *     http://ameblo.jp/yolluca/entry-10895298488.html
-         */
+    @Override
+    public void onPictureTaken(byte[] data, Camera camera) {
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMddkkmmss");
-        String fileName = "Tottepost_" + dateFormat.format(new Date()) + ".jpg";
+        String fileName = "tottepost_" + dateFormat.format(new Date()) + ".jpg";
+        File destFile = new File(baseDir, fileName);
+
         ContentValues values = new ContentValues();
         values.put(MediaStore.Images.Media.TITLE, fileName);
-        values.put("_data", baseDir.getAbsolutePath() + "/" + fileName);
+        values.put("_data", destFile.getAbsolutePath());
         values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
-        destUri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+        Uri destUri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+
+        /***
+         * 撮影した画像を回転させる
+         * 参考:Androidでカメラ撮影し画像を保存する方法 - DRY（日本やアメリカで働くエンジニア日記）
+         *      http://d.hatena.ne.jp/ke-16/20110712/1310433427
+         */
+        Bitmap srcBitmap = BitmapFactory.decodeByteArray(data, 0, data.length);
+        int width = srcBitmap.getWidth();
+        int height = srcBitmap.getHeight();
         
-        Intent mIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-        mIntent.putExtra(MediaStore.EXTRA_OUTPUT, destUri);
-        startActivityForResult(mIntent, Library.REQUEST_IMAGE_FROM_CAMERA);
+        Matrix mMatrix = new Matrix();
+        mMatrix.postRotate(90);
+        
+        Bitmap mBitmap = Bitmap.createBitmap(srcBitmap, 0, 0, width, height, mMatrix, true);
+        srcBitmap.recycle();
+        
+        try {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            mBitmap.compress(Bitmap.CompressFormat.JPEG, 100, baos);
+            
+            FileOutputStream fos = new FileOutputStream(destFile.getAbsolutePath());
+            fos.write(baos.toByteArray());
+            fos.flush();
+            fos.close();
+            baos.close();
+            mBitmap.recycle();
+            
+            if(Library.isCommentEnable(getApplicationContext())) {
+                Intent mIntent = new Intent(TottepostActivity.this, BlankActivity.class);
+                mIntent.setData(destUri);
+                startActivityForResult(mIntent, Library.REQUEST_INPUT_COMMENT);
+            }
+            else {
+                postMessage("", destUri);
+            }
+        }
+        catch(FileNotFoundException e) {
+            getContentResolver().delete(destUri, null, null);
+            e.printStackTrace();
+        }
+        catch(IOException e) {
+            getContentResolver().delete(destUri, null, null);
+            e.printStackTrace();
+        }
+
+        try {
+            /***
+             * 画像の向きを書き込む
+             * 参考:AndroidでExif情報編集 – Android | team-hiroq
+             *      http://team-hiroq.com/blog/android/android_jpeg_exif.html
+             *
+             *      [AIR][Android] CameraUIで撮影した写真の回転が、機種によってバラバラなのをExifで補整する！  |    R o m a t i c A : Blog  : Archive
+             *      http://blog.romatica.com/2011/04/04/air-for-android-cameraui-exif/
+             *
+             * 画面の向きを検出する
+             * 参考:Androidアプリ開発メモ027：画面の向き: ぷ～ろぐ
+             *      http://into.cocolog-nifty.com/pulog/2011/10/android027-9b2b.html
+             */
+            ExifInterface ei = new ExifInterface(destFile.getAbsolutePath());
+            WindowManager wm = (WindowManager)getSystemService(Context.WINDOW_SERVICE);
+            Display mDisplay = wm.getDefaultDisplay();
+            switch(mDisplay.getRotation()) {
+            case Surface.ROTATION_0:
+                ei.setAttribute(ExifInterface.TAG_ORIENTATION, "1");
+
+                break;
+            case Surface.ROTATION_90:
+                ei.setAttribute(ExifInterface.TAG_ORIENTATION, "6");
+
+                break;
+            case Surface.ROTATION_270:
+                ei.setAttribute(ExifInterface.TAG_ORIENTATION, "8");
+
+                break;
+            default:
+                break;
+            }
+            ei.saveAttributes();
+        }
+        catch(IOException e) {
+            e.printStackTrace();
+        }
+
+        capturing = false;
+        focused = false;
+        mCamera.cancelAutoFocus();
+        if(!Library.isCommentEnable(getApplicationContext())) {
+            mCamera.startPreview();
+        }
+        captureButton.setEnabled(true);
     }
+
+    @Override
+    public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+        try {
+            if(mCamera != null) {
+                mCamera.stopPreview();
+            }
+            else {
+                mCamera = Camera.open();
+            }
+    
+            // 各種パラメータの設定
+            Camera.Parameters params = mCamera.getParameters();
+            // 保存する画像サイズを決定
+            List<Camera.Size> pictureSizes = params.getSupportedPictureSizes();
+            Camera.Size picSize = pictureSizes.get(0);
+            for(int i = 1; i < pictureSizes.size(); i++) {
+                Camera.Size temp = pictureSizes.get(i);
+                if(picSize.width * picSize.height > 1280 * 1024 || picSize.width * picSize.height < temp.width * temp.height) {
+                    // 1280x1024以下で一番大きな画像サイズを選択
+                    picSize = temp;
+                }
+            }
+            params.setPictureSize(picSize.width, picSize.height);
+            
+            // 画像サイズを元にプレビューサイズを決定
+            List<Camera.Size> previewSizes = params.getSupportedPreviewSizes();
+            Camera.Size preSize = previewSizes.get(0);
+            for(int i = 1; i < previewSizes.size(); i++) {
+                Camera.Size temp = previewSizes.get(i);
+                if(Math.abs((double)picSize.width / (double)picSize.height - (double)preSize.width / (double)preSize.height)
+                   >= Math.abs((double)picSize.width / (double)picSize.height - (double)temp.width / (double)temp.height)) {
+                    if(preSize.width * preSize.height < temp.width * temp.height) {
+                        // 一番保存サイズに近くてかつ一番大きなプレビューサイズを選択
+                        preSize = temp;
+                    }
+                }
+            }
+            params.setPreviewSize(preSize.width, preSize.height);
+            
+            // プレビューサイズを元にSurfaceViewのサイズを決定
+            // プレビューサイズとSurfaceViewのサイズで縦横の関係が逆になっている
+            WindowManager manager = (WindowManager)getSystemService(WINDOW_SERVICE);
+            Display mDisplay = manager.getDefaultDisplay();
+            ViewGroup.LayoutParams lParams = preview.getLayoutParams();
+            lParams.width  = mDisplay.getWidth();
+            lParams.height = mDisplay.getHeight();
+            if((double)preSize.width / (double)preSize.height
+               < (double)mDisplay.getHeight() / (double)mDisplay.getWidth()) {
+                // 横の長さに合わせる
+                lParams.height = preSize.width * mDisplay.getWidth() / preSize.height;
+            }
+            else if((double)preSize.width / (double)preSize.height
+                    > (double)mDisplay.getHeight() / (double)mDisplay.getWidth()) {
+                // 縦の長さに合わせる
+                lParams.width  = preSize.height * mDisplay.getHeight() / preSize.width;
+            }
+            preview.setLayoutParams(lParams);
+            
+            mCamera.setParameters(params);
+            
+            switch(mDisplay.getRotation()) {
+            case Surface.ROTATION_0:
+                mCamera.setDisplayOrientation(90);
+    
+                break;
+            case Surface.ROTATION_90:
+                mCamera.setDisplayOrientation(0);
+    
+                break;
+            case Surface.ROTATION_270:
+                mCamera.setDisplayOrientation(180);
+    
+                break;
+            default:
+                break;
+            }
+
+            mCamera.setPreviewDisplay(preview.getHolder());
+            mCamera.startPreview();
+        }
+        catch(Exception e) {
+            Toast.makeText(getApplicationContext(), getResources().getString(R.string.error_launch_camera_failed), Toast.LENGTH_SHORT).show();
+            finish();
+        }
+    }
+
+    @Override
+    public void surfaceCreated(SurfaceHolder holder) {}
+
+    @Override
+    public void surfaceDestroyed(SurfaceHolder holder) {}
 
     // ギャラリーを呼び出す
     public void callGallery() {
@@ -232,16 +485,14 @@ public class TottepostActivity extends Activity {
     }
 
     // メッセージを投稿する
-    public void postMessage(Uri inputUri) {
-        // EditText messageBox = (EditText)findViewById(R.id.message);
-        String message = ""; // messageBox.getText().toString();
+    public void postMessage(String inputMessage, Uri inputUri) {
         if(inputUri != null) {
             Toast.makeText(getApplicationContext(), getResources().getString(R.string.post_message_before), Toast.LENGTH_SHORT).show();
             if(Library.isServiceEnable("setting_use_facebook", getApplicationContext())) {
                 // Facebook用の処理
                 if(tokens[Library.TOKEN_FOR_FACEBOOK].length() != 0) {
                     // アクセストークンの取得に成功したら投稿を行う
-                    ImagePostTask imagePost = new ImagePostTask(message, inputUri, Library.FACEBOOK);
+                    ImagePostTask imagePost = new ImagePostTask(inputMessage, inputUri, Library.FACEBOOK);
                     imagePost.execute();
                 }
                 else {
@@ -254,7 +505,7 @@ public class TottepostActivity extends Activity {
                 // Twitter用の処理
                 if(tokens[Library.TOKEN_FOR_TWITTER].length() != 0 && tokens[Library.TOKEN_SECRET_FOR_TWITTER].length() != 0) {
                     // アクセストークンの取得に成功したら投稿を行う
-                    ImagePostTask imagePost = new ImagePostTask(message, inputUri, Library.TWITTER);
+                    ImagePostTask imagePost = new ImagePostTask(inputMessage, inputUri, Library.TWITTER);
                     imagePost.execute();
                 }
                 else {
@@ -263,7 +514,6 @@ public class TottepostActivity extends Activity {
                                    Toast.LENGTH_SHORT).show();
                 }
             }
-            // messageBox.setText("");
         }
         else {
             Toast.makeText(getApplicationContext(), getResources().getString(R.string.post_image_empty), Toast.LENGTH_SHORT).show();
@@ -271,6 +521,7 @@ public class TottepostActivity extends Activity {
     }
 
     class ImagePostTask extends AsyncTask<Void, Void, Void> {
+        // 変数の宣言
         private String message;
         private Uri imageUri;
         private int target;
@@ -283,7 +534,17 @@ public class TottepostActivity extends Activity {
 
         @Override
         public Void doInBackground(Void... params) {
-            ContentResolver resolver = getContentResolver();
+            while(uploading) {
+                // 他のファイルをアップロード中であれば待機する
+                try {
+                    Thread.sleep(500);
+                }
+                catch(Exception e) {
+                    e.printStackTrace();
+                }
+            }
+            uploading = true;
+            
             switch(target) {
             case Library.FACEBOOK:
                 /***
@@ -293,6 +554,7 @@ public class TottepostActivity extends Activity {
                  */
                 byte[] picture = null;
                 try {
+                    ContentResolver resolver = getContentResolver();
                     Bitmap mBitmap = MediaStore.Images.Media.getBitmap(resolver, imageUri);
                     ByteArrayOutputStream baos = new ByteArrayOutputStream();
                     String type = resolver.getType(imageUri);
@@ -302,6 +564,7 @@ public class TottepostActivity extends Activity {
                     else {
                         mBitmap.compress(Bitmap.CompressFormat.JPEG, 100, baos);
                     }
+                    mBitmap.recycle();
                     picture = baos.toByteArray();
                     baos.close();
                 }
@@ -329,6 +592,7 @@ public class TottepostActivity extends Activity {
                 mTwitter.setOAuthConsumer(Library.CS_KEY_FOR_TWITTER, Library.CS_SECRET_FOR_TWITTER);
                 mTwitter.setOAuthAccessToken(new AccessToken(tokens[Library.TOKEN_FOR_TWITTER], tokens[Library.TOKEN_SECRET_FOR_TWITTER]));
                 StatusUpdate status = new StatusUpdate(message);
+                ContentResolver resolver = getContentResolver();
                 Cursor mCursor = resolver.query(imageUri, null, null, null, null);
                 mCursor.moveToFirst();
                 File image = new File(mCursor.getString(mCursor.getColumnIndex(MediaStore.MediaColumns.DATA)));
@@ -336,8 +600,8 @@ public class TottepostActivity extends Activity {
 
                 boolean complete = false;
                 int count = 0;
-                // 投稿に成功するか5回までリトライする
-                while(!complete && count < 5) {
+                if(!complete && count < 5) {
+                    // 成功するか5回失敗するまで投稿
                     try {
                         mTwitter.updateStatus(status);
                         mHandler.post(new Runnable() {
@@ -349,10 +613,11 @@ public class TottepostActivity extends Activity {
                             }
                         });
                         complete = true;
+                        uploading = false;
                     }
                     catch (TwitterException e) {
-                        e.printStackTrace();
                         count++;
+                        e.printStackTrace();
                     }
                 }
                 if(!complete) {
@@ -375,147 +640,6 @@ public class TottepostActivity extends Activity {
         }
     }
 
-    // カメラ内部class
-    public class CameraView extends SurfaceView implements Callback, PictureCallback {
-        private Camera camera = null;
-        private File baseDir;
-
-        public CameraView(Context context) {
-            super(context);
-            SurfaceHolder holder = getHolder();
-            holder.addCallback(this);
-            holder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
-            
-            //  保存先のディレクトリを作成
-            baseDir = new File(Environment.getExternalStorageDirectory(), "Tottepost");
-            try {
-                if(!baseDir.exists() && !baseDir.mkdirs()) {
-                    Toast.makeText(getApplicationContext(), getResources().getString(R.string.error_make_directory_failed), Toast.LENGTH_SHORT).show();
-                    finish();
-                }
-            }
-            catch(Exception e) {
-                e.printStackTrace();
-            }
-        }
-
-        // surface起動時の処理
-        @Override
-        public void surfaceCreated(SurfaceHolder holder) {
-            try {
-                camera = Camera.open();
-                camera.setPreviewDisplay(holder);
-                // camera.setDisplayOrientation(90);
-            }
-            catch(IOException e) {
-                e.printStackTrace();
-            }
-        }
-
-        @Override
-        public void surfaceChanged(SurfaceHolder holder, int f, int w, int h) {
-            Camera.Parameters p = camera.getParameters();
-            // p.setPreviewSize(w,h);
-            camera.setParameters(p);
-            camera.startPreview();
-        }
-
-        // surface終了時の処理
-        @Override
-        public void surfaceDestroyed(SurfaceHolder holder) {
-            camera.setPreviewCallback(null); 
-            camera.stopPreview();
-            camera.release();
-            camera = null; 
-        }
-
-        // 撮影後処理と画像の保存
-        @Override
-        public void onPictureTaken(byte[] data, Camera camera) {
-            if(Library.isAnyServiceEnable(TottepostActivity.this)) {
-                // 1つ以上のサービスが有効になっている場合は撮影した画像を投稿する
-                SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMddkkmmss");
-                String fileName = "Tottepost_" + dateFormat.format(new Date()) + ".jpg";
-                String destPath = baseDir.getAbsolutePath() + "/" + fileName;
-                ContentValues values = new ContentValues();
-                values.put(MediaStore.Images.Media.TITLE, fileName);
-                values.put("_data", destPath);
-                values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
-                destUri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
-                
-                FileOutputStream fos = null;
-                // SDカードへ出力
-                try {
-                    fos = new FileOutputStream(destPath);
-                }
-                catch(FileNotFoundException e) {
-                    e.printStackTrace();
-                }
-    
-                if(fos != null){
-                    try {
-                        fos.write(data);
-                        fos.close();
-                        fos = null;
-                    }
-                    catch(IOException e) {
-                        getContentResolver().delete(destUri, null, null);
-                        e.printStackTrace();
-                    }
-                }
-                
-                postMessage(destUri);
-            }
-            else {
-                // 全てのサービスが無効になっている場合は撮影した画像を投稿しない
-                mHandler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        Toast.makeText(getApplicationContext(), getResources().getString(R.string.error_no_service_selected), Toast.LENGTH_SHORT).show();
-                    }
-                });
-            }
-
-            // プレビュー再開
-            camera.startPreview();
-            captureButton.setEnabled(true);
-        }
-
-        // プレビュー画面をタッチしたときの動作
-        // ハードの決定ボタン含みます
-        @Override
-        public boolean onTouchEvent(MotionEvent me) {
-            if(me.getAction() == MotionEvent.ACTION_DOWN) {
-                // xperiaのみ
-                // 端末ごとにオートフォーカスの使用方法が違うため、オートフォーカスでエラーを吐く場合、
-                // autoFocus();をコメントアウトしてください。近日中に改善予定。
-                // autoFocus();
-                // camera.takePicture(null, null, this);
-            }
-            return(true);
-        }
-
-        // main activityでの撮影ボタンの動作
-        public boolean capture() {
-            // xperiaのみ
-            autoFocus();
-            camera.takePicture(null, null, this);
-            return(true);
-        }
-
-        // オートフォーカス
-        public void autoFocus(){
-            if(camera != null){
-                camera.autoFocus(new Camera.AutoFocusCallback() {
-                    @Override
-                    public void onAutoFocus(boolean success, Camera camera){
-                        camera.autoFocus(null);    
-                    }
-                });
-            }
-        }
-    }
-
     class ImagePostRequestListener implements AsyncFacebookRunner.RequestListener {
         @Override
         public void onComplete(String response, Object state) {
@@ -527,6 +651,7 @@ public class TottepostActivity extends Activity {
                                    Toast.LENGTH_SHORT).show();
                 }
             });
+            uploading = false;
         }
 
         @Override
