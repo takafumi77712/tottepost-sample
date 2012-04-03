@@ -1,30 +1,46 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android" >
-    <PreferenceCategory android:title="@string/setting_general_title">
+    <PreferenceCategory android:title="@string/setting_general_title" >
         <CheckBoxPreference android:title="@string/setting_use_comment_title"
-            android:key="setting_use_comment">
-        </CheckBoxPreference>
+            android:key="setting_use_comment"
+            android:summaryOn="@string/setting_post_enable"
+            android:summaryOff="@string/setting_post_disable" />
         <CheckBoxPreference android:title="@string/setting_send_location_title"
-            android:key="setting_send_location">
-        </CheckBoxPreference>
+            android:key="setting_send_location"
+            android:summaryOn="@string/setting_send_enable"
+            android:summaryOff="@string/setting_send_disable" />
     </PreferenceCategory>
-    <PreferenceCategory android:title="@string/setting_service_title">
-	    <PreferenceScreen android:title="@string/service_name_facebook">
-	        <PreferenceCategory android:title="@string/service_name_facebook">
+    <PreferenceCategory android:title="@string/setting_service_title" >
+	    <PreferenceScreen android:title="@string/service_name_facebook"
+	        android:key="setting_facebook"
+            android:summary="@string/setting_not_registed" >
+	        <PreferenceCategory android:title="@string/service_name_facebook" >
 	            <CheckBoxPreference android:title="@string/setting_use_facebook_title"
 	                android:key="setting_use_facebook"
+		            android:summaryOn="@string/setting_post_enable"
+		            android:summaryOff="@string/setting_post_disable"
 	                android:enabled="false" />
 	            <Preference android:title="@string/setting_regist_account"
 	                android:key="setting_regist_facebook" />
+                <Preference android:title="@string/setting_delete_account"
+                    android:key="setting_delete_facebook"
+                    android:enabled="false" />
 	        </PreferenceCategory>
 	    </PreferenceScreen>
-	    <PreferenceScreen android:title="Twitter">
-	        <PreferenceCategory android:title="@string/service_name_twitter">
+	    <PreferenceScreen android:title="@string/service_name_twitter"
+            android:key="setting_twitter"
+            android:summary="@string/setting_not_registed" >
+	        <PreferenceCategory android:title="@string/service_name_twitter" >
 	            <CheckBoxPreference android:title="@string/setting_use_twitter_title"
 	                android:key="setting_use_twitter"
+                    android:summaryOn="@string/setting_post_enable"
+                    android:summaryOff="@string/setting_post_disable"
                     android:enabled="false" />
 	            <Preference android:title="@string/setting_regist_account"
 	                android:key="setting_regist_twitter" />
+                <Preference android:title="@string/setting_delete_account"
+                    android:key="setting_delete_twitter"
+                    android:enabled="false" />
 	        </PreferenceCategory>
 	    </PreferenceScreen>
     </PreferenceCategory>

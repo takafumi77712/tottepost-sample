@@ -20,8 +20,11 @@ public class BlankActivity extends Activity {
         try {
             ContentResolver resolver = getContentResolver();
             Uri imageUri = getIntent().getData();
-            
             /***
+             * 画像を回転させる
+             * 参考:Androidでカメラ撮影し画像を保存する方法 - DRY（日本やアメリカで働くエンジニア日記）
+             *      http://d.hatena.ne.jp/ke-16/20110712/1310433427
+             *      
              * 画像のサイズを画面サイズに合わせる
              * 参考:Android: Bitmapを画面サイズにリサイズする | 自転車で通勤しましょ♪ブログ
              *      http://319ring.net/blog/archives/1504
@@ -31,6 +34,7 @@ public class BlankActivity extends Activity {
             int srcHeight = srcBitmap.getHeight();
             
             Matrix mMatrix = new Matrix();
+            mMatrix.postRotate(90);
             DisplayMetrics metrics = new DisplayMetrics();
             getWindowManager().getDefaultDisplay().getMetrics(metrics);
             float screenWidth  = (float)metrics.widthPixels;

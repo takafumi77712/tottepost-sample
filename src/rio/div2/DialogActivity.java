@@ -32,7 +32,11 @@ public class DialogActivity extends Activity {
         });
     }
 
-    // 入力パネルを閉じる
+    /***
+     * 入力パネルを閉じる
+     * 
+     * @param v
+     */
     public void closeInputPanel(View v) {
         InputMethodManager mInputMethodManager = (InputMethodManager)getSystemService(Context.INPUT_METHOD_SERVICE);
         mInputMethodManager.hideSoftInputFromWindow(v.getWindowToken(), 0);

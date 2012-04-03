@@ -12,9 +12,17 @@
     <string name="setting_title">設定メニュー</string>
     <string name="setting_general_title">一般設定</string>
     <string name="setting_use_comment_title">コメントを投稿する</string>
+    <string name="setting_post_enable">投稿する</string>
+    <string name="setting_post_disable">投稿しない</string>
     <string name="setting_send_location_title">位置情報を送信する</string>
+    <string name="setting_send_enable">送信する</string>
+    <string name="setting_send_disable">送信しない</string>
     <string name="setting_service_title">各サービスの設定</string>
+    <string name="setting_not_registed">未登録</string>
     <string name="setting_regist_account">アカウントを登録する</string>
+    <string name="setting_delete_account">登録情報を削除する</string>
+    <string name="setting_delete_title">登録情報の削除</string>
+    <string name="setting_delete_message">の登録情報を本当に削除しますか?</string>
     <string name="setting_use_facebook_title">Facebookに投稿する</string>
     <string name="setting_use_twitter_title">Twitterに投稿する</string>
 
@@ -29,9 +37,13 @@
     
     <string name="enable">有効</string>
     <string name="disable">無効</string>
+    <string name="yes">はい</string>
+    <string name="no">いいえ</string>
+    <string name="ok">OK</string>
     
+    <string name="error_title">エラー</string>
     <string name="error_make_directory_failed">保存用ディレクトリの作成に失敗しました</string>
-    <string name="error_no_service_selected">投稿先のサービスが選択されていません</string>
+    <string name="error_no_service_selected">設定画面から投稿先のサービスを1つ以上選択してください。</string>
     <string name="error_launch_camera_failed">カメラの起動に失敗しました</string>
     <string name="error_missing_parameters">パラメータがありません</string>
     <string name="error_upload_failed">アップロード失敗</string>
