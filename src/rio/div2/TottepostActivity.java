@@ -10,8 +10,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.graphics.Matrix;
 import android.hardware.Camera;
 import android.location.Location;
 import android.location.LocationListener;
@@ -88,6 +86,9 @@ public class TottepostActivity extends Activity implements SurfaceHolder.Callbac
     private SurfaceView preview;
     // mCamera - カメラのインスタンス
     private Camera mCamera;
+    // dialog - ダイアログ
+    private AlertDialog dialog;
+
     private LocationManager lManager;
     private Location mLocation;
     private LocationListener lListener;
@@ -102,8 +103,6 @@ public class TottepostActivity extends Activity implements SurfaceHolder.Callbac
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        mHandler = new Handler();
-
         /***
          * スリープを無効にする
          * 参考:画面をスリープ状態にさせないためには - 逆引きAndroid入門
@@ -112,6 +111,8 @@ public class TottepostActivity extends Activity implements SurfaceHolder.Callbac
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         setContentView(R.layout.main);
+
+        mHandler = new Handler();
 
         /***
          * Keep Aliveを無効にする
@@ -185,7 +186,7 @@ public class TottepostActivity extends Activity implements SurfaceHolder.Callbac
                     // オートフォーカス中でなければオートフォーカスを実行
                     // フラグを更新
                     focusing = true;
-                    
+
                     captureButton.setEnabled(false);
                     mCamera.autoFocus(new Camera.AutoFocusCallback() {
                         @Override
@@ -200,16 +201,16 @@ public class TottepostActivity extends Activity implements SurfaceHolder.Callbac
                 return(false);
             }
         });
-        
+
         lListener = new MyLocationListener();
         lManager = (LocationManager)getSystemService(Context.LOCATION_SERVICE);
         mLocation = lManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
     }
-    
+
     @Override
     public void onResume() {
         super.onResume();
-        
+
         // トークンを読み込み
         tokens = Library.loadTokens(getApplicationContext());
 
@@ -219,26 +220,29 @@ public class TottepostActivity extends Activity implements SurfaceHolder.Callbac
         mAsyncRunner = new AsyncFacebookRunner(mFacebook);
 
         surfaceChanged(preview.getHolder(), 0, 0, 0);
-        
+
         if(!Library.isAnyServiceEnable(getApplicationContext())) {
-            /***
-             * 投稿先のサービスが1つも選択されていなければ、撮影ボタンを無効にしてダイアログを表示する
-             * 参考:アラートダイアログ(AlertDialog)を使用するには - 逆引きAndroid入門
-             *      http://www.adakoda.com/android/000083.html
-             */
-            captureButton.setEnabled(false);
-            AlertDialog.Builder builder = new AlertDialog.Builder(this);
-            builder.setIcon(android.R.drawable.ic_dialog_alert);
-            builder.setTitle(getString(R.string.error_title));
-            builder.setMessage(getString(R.string.error_no_service_selected));
-            builder.setPositiveButton(getString(R.string.ok), null);
-            builder.setCancelable(true);
-            builder.create().show();
+            if(dialog == null || !dialog.isShowing()) {
+                /***
+                 * 投稿先のサービスが1つも選択されていなければ、撮影ボタンを無効にしてダイアログを表示する
+                 * 参考:アラートダイアログ(AlertDialog)を使用するには - 逆引きAndroid入門
+                 *      http://www.adakoda.com/android/000083.html
+                 */
+                captureButton.setEnabled(false);
+                AlertDialog.Builder builder = new AlertDialog.Builder(this);
+                builder.setIcon(android.R.drawable.ic_dialog_alert);
+                builder.setTitle(getString(R.string.error_title));
+                builder.setMessage(getString(R.string.error_no_service_selected));
+                builder.setPositiveButton(getString(R.string.ok), null);
+                builder.setCancelable(true);
+                dialog = builder.create();
+                dialog.show();
+            }
         }
         else {
             captureButton.setEnabled(true);
         }
-        
+
         lManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 5000, 0, lListener);
     }
 
@@ -251,7 +255,7 @@ public class TottepostActivity extends Activity implements SurfaceHolder.Callbac
             mCamera.release();
             mCamera = null;
         }
-        
+
         lManager.removeUpdates(lListener);
     }
 
@@ -320,7 +324,7 @@ public class TottepostActivity extends Activity implements SurfaceHolder.Callbac
 
     /***
      * 入力パネルを閉じる
-     * 
+     *
      * @param v
      */
     public void closeInputPanel(View v) {
@@ -344,13 +348,13 @@ public class TottepostActivity extends Activity implements SurfaceHolder.Callbac
         values.put("_data", destFile.getAbsolutePath());
         values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
         Uri destUri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
-        
+
         try {
             FileOutputStream fos = new FileOutputStream(destFile.getAbsolutePath());
             fos.write(data);
             fos.flush();
             fos.close();
-            
+
             if(Library.isCommentEnable(getApplicationContext())) {
                 Intent mIntent = new Intent(TottepostActivity.this, BlankActivity.class);
                 mIntent.setData(destUri);
@@ -428,7 +432,7 @@ public class TottepostActivity extends Activity implements SurfaceHolder.Callbac
             else {
                 mCamera = Camera.open();
             }
-    
+
             // 各種パラメータの設定
             Camera.Parameters params = mCamera.getParameters();
             // 保存する画像サイズを決定
@@ -442,7 +446,7 @@ public class TottepostActivity extends Activity implements SurfaceHolder.Callbac
                 }
             }
             params.setPictureSize(picSize.width, picSize.height);
-            
+
             // 画像サイズを元にプレビューサイズを決定
             List<Camera.Size> previewSizes = params.getSupportedPreviewSizes();
             Camera.Size preSize = previewSizes.get(0);
@@ -457,7 +461,7 @@ public class TottepostActivity extends Activity implements SurfaceHolder.Callbac
                 }
             }
             params.setPreviewSize(preSize.width, preSize.height);
-            
+
             // プレビューサイズを元にSurfaceViewのサイズを決定
             // プレビューサイズとSurfaceViewのサイズで縦横の関係が逆になっている
             WindowManager manager = (WindowManager)getSystemService(WINDOW_SERVICE);
@@ -476,21 +480,21 @@ public class TottepostActivity extends Activity implements SurfaceHolder.Callbac
                 lParams.width  = preSize.height * mDisplay.getHeight() / preSize.width;
             }
             preview.setLayoutParams(lParams);
-            
+
             mCamera.setParameters(params);
-            
+
             switch(mDisplay.getRotation()) {
             case Surface.ROTATION_0:
                 mCamera.setDisplayOrientation(90);
-    
+
                 break;
             case Surface.ROTATION_90:
                 mCamera.setDisplayOrientation(0);
-    
+
                 break;
             case Surface.ROTATION_270:
                 mCamera.setDisplayOrientation(180);
-    
+
                 break;
             default:
                 break;
@@ -529,7 +533,7 @@ public class TottepostActivity extends Activity implements SurfaceHolder.Callbac
 
     /***
      * メッセージを投稿する
-     * 
+     *
      * @param inputMessage
      *     投稿するメッセージ
      * @param inputUri
@@ -581,7 +585,7 @@ public class TottepostActivity extends Activity implements SurfaceHolder.Callbac
 
         /***
          * コンストラクタ
-         * 
+         *
          * @param inputMessage
          *     投稿するメッセージ
          * @param inputUri
@@ -610,7 +614,7 @@ public class TottepostActivity extends Activity implements SurfaceHolder.Callbac
                 }
             }
             uploading = true;
-            
+
             switch(target) {
             case Library.FACEBOOK:
                 /***
@@ -744,7 +748,7 @@ public class TottepostActivity extends Activity implements SurfaceHolder.Callbac
         @Override
         public void onFacebookError(FacebookError e, Object state) {}
     }
-    
+
     class MyLocationListener implements LocationListener {
         @Override
         public void onLocationChanged(Location location) {
@@ -760,16 +764,16 @@ public class TottepostActivity extends Activity implements SurfaceHolder.Callbac
         @Override
         public void onStatusChanged(String provider, int status, Bundle extras) {}
     }
-    
+
     class FetchPlaceRequestListener implements AsyncFacebookRunner.RequestListener {
         private String message;
         private byte[] picture;
-        
+
         public FetchPlaceRequestListener(String inputMessage, byte[] inputPicture) {
             message = inputMessage;
             picture = inputPicture;
         }
-        
+
         @Override
         public void onComplete(String response, Object state) {
             try {
