@@ -1,13 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">tottepost</string>
+
     <string name="main_label_capture">撮影</string>
     <string name="main_hint_message">メッセージを入力</string>
-    
+    <string name="main_exit_title">アプリの終了</string>
+    <string name="main_exit_message">アプリを終了してもよろしいですか?</string>
+    <string name="main_updating_location_title">位置情報を取得中…</string>
+    <string name="main_updating_location">位置情報を取得しています…</string>
+
+    <string name="post_message_before">画像を投稿中…</string>
+    <string name="post_message_after">に画像を投稿完了</string>
+
     <string name="dialog_title">メッセージ入力画面</string>
     <string name="dialog_label_post">投稿</string>
 
-    <string name="oauth_title">OAuth認証</string>
+    <string name="menu_setting">設定画面を開く</string>
+    <string name="menu_about">About</string>
 
     <string name="setting_title">設定メニュー</string>
     <string name="setting_general_title">一般設定</string>
@@ -26,32 +35,29 @@
     <string name="setting_use_facebook_title">Facebookに投稿する</string>
     <string name="setting_use_twitter_title">Twitterに投稿する</string>
 
+    <string name="oauth_title">OAuth認証</string>
+
     <string name="about_title">About</string>
     <string name="about_text">About</string>
 
-    <string name="menu_setting">設定画面を開く</string>
-    <string name="menu_about">About</string>
-
-    <string name="service_name_facebook">Facebook</string>
-    <string name="service_name_twitter">Twitter</string>
-    
     <string name="enable">有効</string>
     <string name="disable">無効</string>
     <string name="yes">はい</string>
     <string name="no">いいえ</string>
     <string name="ok">OK</string>
-    
+
+    <string name="service_name_facebook">Facebook</string>
+    <string name="service_name_twitter">Twitter</string>
+
     <string name="error_title">エラー</string>
     <string name="error_make_directory_failed">保存用ディレクトリの作成に失敗しました</string>
     <string name="error_no_service_selected">設定画面から投稿先のサービスを1つ以上選択してください。</string>
     <string name="error_launch_camera_failed">カメラの起動に失敗しました</string>
-    <string name="error_missing_parameters">パラメータがありません</string>
+    <string name="error_message_empty">投稿するメッセージがありません</string>
+    <string name="error_image_empty">投稿する画像がありません</string>
+    <string name="error_login_failed">へのログインに失敗</string>
+    <string name="error_post_failed">への画像の投稿に失敗</string>
     <string name="error_upload_failed">アップロード失敗</string>
-
-    <string name="post_message_empty">投稿するメッセージがありません</string>
-    <string name="post_image_empty">投稿する画像がありません</string>
-    <string name="post_login_failed">へのログインに失敗</string>
-    <string name="post_message_post_failed">への画像の投稿に失敗</string>
-    <string name="post_message_before">画像を投稿中…</string>
-    <string name="post_message_after">に画像を投稿完了</string>
+    <string name="error_update_location_failed">位置情報の取得に失敗</string>
+    <string name="error_location_to_disabled">\"位置情報を送信する\"は無効になりました。</string>
 </resources>

@@ -1,0 +1,9 @@
+2012年4月9日 杉本祐介
+・アプリを終了する際に本当に終了するか尋ねるようにした
+・位置情報の取得タイミングを変更した
+・位置情報を取得している間、プログレスダイアログを表示するようにした
+・一覧の中から現在地を選択できるようにした
+・Library.javaにメソッドを1つ追加し、2つのメソッドの名前を変更した
+  static void setLocationEnable(boolean, Context)を追加
+  saveDataをsaveStringに変更
+  loadDataをloadStringに変更

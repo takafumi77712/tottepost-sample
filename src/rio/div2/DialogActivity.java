@@ -14,7 +14,7 @@ public class DialogActivity extends Activity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.dialog);
-        
+
         Button postButton = (Button)findViewById(R.id.post);
         postButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -22,11 +22,12 @@ public class DialogActivity extends Activity {
                 closeInputPanel(v);
                 EditText messageBox = (EditText)findViewById(R.id.message);
                 String message = messageBox.getText().toString();
-                
+
                 Intent mIntent = new Intent();
                 mIntent.putExtra("message", message);
                 mIntent.setData(getIntent().getData());
                 setResult(RESULT_OK, mIntent);
+
                 finish();
             }
         });
@@ -34,7 +35,7 @@ public class DialogActivity extends Activity {
 
     /***
      * 入力パネルを閉じる
-     * 
+     *
      * @param v
      */
     public void closeInputPanel(View v) {
