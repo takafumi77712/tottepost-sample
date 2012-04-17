@@ -2,6 +2,10 @@ package rio.div2;
 
 import rio.div2.Library;
 
+
+
+
+
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.ProgressDialog;
@@ -14,6 +18,9 @@ import android.content.Intent;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.hardware.Camera;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorManager;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
@@ -23,9 +30,11 @@ import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
+import android.preference.PreferenceManager;
 import android.provider.MediaStore;
 import android.widget.Button;
 import android.widget.Toast;
+import android.util.Log;
 import android.view.Display;
 import android.view.Menu;
 import android.view.MenuInflater;
@@ -38,6 +47,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.view.View.OnTouchListener;
+import android.view.ViewGroup.LayoutParams;
 import android.view.inputmethod.InputMethodManager;
 
 import java.io.ByteArrayOutputStream;
@@ -55,6 +65,8 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+
+
 import com.facebook.android.AsyncFacebookRunner;
 import com.facebook.android.Facebook;
 import com.facebook.android.FacebookError;
@@ -64,8 +76,12 @@ import twitter4j.Twitter;
 import twitter4j.TwitterException;
 import twitter4j.TwitterFactory;
 import twitter4j.auth.AccessToken;
+import android.hardware.SensorEventListener;
 
-public class TottepostActivity extends Activity implements SurfaceHolder.Callback, Camera.PictureCallback {
+
+
+
+public class TottepostActivity extends Activity implements SurfaceHolder.Callback, Camera.PictureCallback, SensorEventListener {
     // 変数の宣言
     // mHandler - 他スレッドからのUIの更新に使用
     private Handler mHandler;
@@ -87,7 +103,7 @@ public class TottepostActivity extends Activity implements SurfaceHolder.Callbac
     private File baseDir;
 
     // captureButton - 撮影ボタン
-    private Button captureButton;
+    //private Button captureButton;
     // preview - プレビュー部分
     private SurfaceView preview;
     // mCamera - カメラのインスタンス
@@ -115,7 +131,16 @@ public class TottepostActivity extends Activity implements SurfaceHolder.Callbac
     // 配列の宣言
     // tokens - 各サービスのアクセストークンが格納される
     private String[] tokens;
-
+    private Runnable runnable;
+    public static int DYSPLAY_SIZE_W ;
+	public static int DYSPLAY_SIZE_H;
+    public static int POINT_X;
+    public static int POINT_Y;
+    private final int WC = ViewGroup.LayoutParams.WRAP_CONTENT;
+    private int KASOKUDO_Y = 0;
+    public static int KAKUDO = 0;
+    private final int REPEAT_INTERVAL = 50;
+    private SensorManager manager;
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -130,7 +155,8 @@ public class TottepostActivity extends Activity implements SurfaceHolder.Callbac
         setContentView(R.layout.main);
 
         mHandler = new Handler();
-
+        displaysize();
+        manager = (SensorManager)getSystemService(SENSOR_SERVICE);
         /***
          * Keep Aliveを無効にする
          * 参考:Broken pipe exception - Twitter4J J | Google グループ
@@ -148,17 +174,26 @@ public class TottepostActivity extends Activity implements SurfaceHolder.Callbac
         baseDir = new File(Environment.getExternalStorageDirectory(), "tottepost");
         try {
             if(!baseDir.exists() && !baseDir.mkdirs()) {
-                Toast.makeText(getApplicationContext(), getString(R.string.error_make_directory_failed), Toast.LENGTH_SHORT).show();
+                Toast.makeText(TottepostActivity.this, getString(R.string.error_make_directory_failed), Toast.LENGTH_SHORT).show();
 
                 finish();
             }
         }
         catch(Exception e) {
+            Toast.makeText(TottepostActivity.this, getString(R.string.error_make_directory_failed), Toast.LENGTH_SHORT).show();
             e.printStackTrace();
+
+            finish();
         }
 
-        captureButton = (Button)findViewById(R.id.capture);
-        captureButton.setOnClickListener(new View.OnClickListener() {
+final overlay overlay = new overlay(this);
+		
+		addContentView(overlay, new LayoutParams(LayoutParams.FILL_PARENT,
+		        LayoutParams.FILL_PARENT));
+ 
+        
+       /* captureButton = (Button)findViewById(R.id.capture);
+       captureButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 if(!capturing) {
@@ -168,7 +203,7 @@ public class TottepostActivity extends Activity implements SurfaceHolder.Callbac
                     mCamera.takePicture(null, null, null, TottepostActivity.this);
                 }
             }
-        });
+        });*/
 
         preview = (SurfaceView)findViewById(R.id.preview);
         preview.getHolder().addCallback(TottepostActivity.this);
@@ -182,14 +217,14 @@ public class TottepostActivity extends Activity implements SurfaceHolder.Callbac
                     // フラグを更新
                     focusing = true;
 
-                    captureButton.setEnabled(false);
+                   // captureButton.setEnabled(false);
                     mCamera.autoFocus(new Camera.AutoFocusCallback() {
                         @Override
                         public void onAutoFocus(boolean success, Camera camera) {
                             focusing = false;
-                            if(Library.isAnyServiceEnable(getApplicationContext())) {
+                            /*if(PreferenceStore.isAnyServiceEnable(TottepostActivity.this)) {
                                 captureButton.setEnabled(true);
-                            }
+                            }*/
                         }
                     });
                 }
@@ -198,14 +233,142 @@ public class TottepostActivity extends Activity implements SurfaceHolder.Callbac
             }
         });
 
+        // 設定情報にデフォルト値をセットする
+        PreferenceManager.setDefaultValues(TottepostActivity.this, R.xml.preference, false);
+
         // 位置情報を取得するための設定
         lListener = new MyLocationListener();
         lManager = (LocationManager)getSystemService(Context.LOCATION_SERVICE);
         mLocation = lManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
-        if(Library.isLocationEnable(getApplicationContext())) {
+        //なんかエラー吐いたのでコメントアウト
+       /* if(PreferenceStore.isLocationEnable(TottepostActivity.this) && PreferenceStore.isAnyServiceEnable(TottepostActivity.this)) {
             updateLocation();
-        }
+        }*/
+        runnable = new Runnable() {
+            @Override
+            public void run() {
+
+                String TAG = "TAG";
+				//2.繰り返し処
+            	Log.d(TAG, "********onDrowivent       "+KASOKUDO_Y+"    ****************");
+            	if(70<KASOKUDO_Y){
+            		KAKUDO = 90;
+            		overlay.kaiten(KAKUDO);
+            	}
+            	if(KASOKUDO_Y<-70){
+            		KAKUDO = 270;
+            		overlay.kaiten(KAKUDO);
+            	}
+            	
+            	if(KASOKUDO_Y==0){
+            		KAKUDO = 0;
+            		overlay.kaiten(KAKUDO);
+            	}
+                //3.次回処理をセット
+            	mHandler.postDelayed(this, REPEAT_INTERVAL);
+            }
+        };
+        
+      //1.初回実行
+        mHandler.postDelayed(runnable, REPEAT_INTERVAL);
+        
+        
+        
     }
+    
+    //加速度センサから情報の取得
+    @Override
+	protected void onStop() {
+	 // TODO Auto-generated method stub
+	 super.onStop();
+	 // Listenerの登録解除
+	 manager.unregisterListener(this);;
+	 }
+
+
+
+
+
+
+
+
+
+	@Override
+	public void onAccuracyChanged(Sensor sensor, int accuracy) {
+		// TODO 自動生成されたメソッド・スタブ
+		
+	}
+
+
+
+
+
+
+
+
+	@Override
+	public void onSensorChanged(SensorEvent event) {
+		int senser = (int) event.values[1];
+		if(event.sensor.getType() == Sensor.TYPE_ORIENTATION) {
+			KASOKUDO_Y = (int) event.values[2];
+			
+	
+			}
+		}
+	
+	
+    
+    
+    
+    public boolean onTouchEvent(MotionEvent me) {
+		if(10<=me.getX() && me.getX()<=200 && 10<=me.getY() && me.getY()<=200 && me.getAction()==MotionEvent.ACTION_DOWN) {
+			//autoFocus();
+		}
+			else if((DYSPLAY_SIZE_W/2)-(POINT_X/2)<=me.getX() && me.getX()<=(DYSPLAY_SIZE_W/2)+(POINT_X/2) &&
+					DYSPLAY_SIZE_H-POINT_Y<=me.getY() && me.getY()<= DYSPLAY_SIZE_H ){
+
+                if(!capturing) {
+                    // 撮影中でなければ撮影
+                    capturing = true;
+                   // captureButton.setEnabled(false);
+                    mCamera.takePicture(null, null, null, TottepostActivity.this);
+                }
+		
+		
+	}
+		return true;  
+		
+	}
+    
+    
+    
+    public void autoFocus(){
+		if( mCamera != null ){
+			mCamera.autoFocus( new Camera.AutoFocusCallback() {
+				public void onAutoFocus( boolean success, Camera camera ){
+					camera.autoFocus( null );	
+
+				}
+			} );
+		}
+	}
+	
+    
+    public void displaysize(){
+		WindowManager wm = (WindowManager) getSystemService(Context.WINDOW_SERVICE);
+		Display display = wm.getDefaultDisplay();
+		DYSPLAY_SIZE_W = display.getWidth();
+		DYSPLAY_SIZE_H = display.getHeight();
+		Log.d("display", "w:" + display.getWidth());
+		Log.d("display", "h:" + display.getHeight());
+	}
+    
+    
+    
+    
+    
+    
+    
 
     @Override
     public void onResume() {
@@ -228,7 +391,11 @@ public class TottepostActivity extends Activity implements SurfaceHolder.Callbac
                  * 参考:アラートダイアログ(AlertDialog)を使用するには - 逆引きAndroid入門
                  *      http://www.adakoda.com/android/000083.html
                  */
-                captureButton.setEnabled(false);
+             //   captureButton.setEnabled(false);
+            	
+            	
+            	
+            	
                 AlertDialog.Builder builder = new AlertDialog.Builder(this);
                 builder.setIcon(android.R.drawable.ic_dialog_alert);
                 builder.setTitle(getString(R.string.error_title));
@@ -240,8 +407,17 @@ public class TottepostActivity extends Activity implements SurfaceHolder.Callbac
             }
         }
         else {
-            captureButton.setEnabled(true);
+            //captureButton.setEnabled(true);
         }
+        
+        
+        List<Sensor> sensors = manager.getSensorList(Sensor.TYPE_ORIENTATION);
+   	 if(sensors.size() > 0) {
+   	 Sensor s = sensors.get(0);
+   	 manager.registerListener(this, s, SensorManager.SENSOR_DELAY_UI);
+   	 }
+        
+        
     }
 
     @Override
@@ -442,7 +618,7 @@ public class TottepostActivity extends Activity implements SurfaceHolder.Callbac
         if(!Library.isCommentEnable(getApplicationContext())) {
             mCamera.startPreview();
         }
-        captureButton.setEnabled(true);
+       // captureButton.setEnabled(true);
     }
 
     /***
